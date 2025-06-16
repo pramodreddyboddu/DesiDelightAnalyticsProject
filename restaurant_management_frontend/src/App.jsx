@@ -52,13 +52,19 @@ const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       setLoading(true);
-      // For demo purposes, check if user is already logged in
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+      } else {
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -66,28 +72,35 @@ const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      // For demo purposes, simulate a successful login with admin role
-      if (username === 'admin' && password === 'admin123') {
-        const userData = {
-          id: 1,
-          username: 'admin',
-          role: 'admin',
-          name: 'Administrator'
-        };
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
-        return { success: true };
-      } else {
-        return { success: false, error: 'Invalid credentials' };
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.message || 'Invalid credentials' };
       }
+
+      const userData = await response.json();
+      setUser(userData);
+      return { success: true };
     } catch (error) {
+      console.error('Login error:', error);
       return { success: false, error: 'Network error' };
     }
   };
 
   const logout = async () => {
     try {
-      localStorage.removeItem('user');
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

@@ -15,8 +15,21 @@ from src.routes.reports import reports_bp
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
+# Session configuration
+app.config['SESSION_COOKIE_NAME'] = 'session'
+app.config['SESSION_COOKIE_DOMAIN'] = 'localhost'  # Set to match your frontend domain
+app.config['SESSION_COOKIE_PATH'] = '/'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Use 'None' if using cross-site cookies
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours in seconds
+
 # Enable CORS for all routes
-CORS(app, supports_credentials=True)
+CORS(app, 
+     supports_credentials=True, 
+     origins=['http://localhost:5173'],  # Vite's default port
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
 # Register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
