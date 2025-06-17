@@ -223,7 +223,7 @@ const Navigation = ({ activeTab, setActiveTab }) => {
             <div className="flex-shrink-0 flex items-center">
               <h1 className="text-xl font-bold text-gray-900">FreshMart Analytics</h1>
             </div>
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <div className="hidden sm:ml-6 sm:flex sm:space-x-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -235,8 +235,9 @@ const Navigation = ({ activeTab, setActiveTab }) => {
                         ? 'border-blue-500 text-gray-900'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
+                    style={{ minWidth: 0, paddingLeft: '4px', paddingRight: '4px' }}
                   >
-                    <Icon className="w-4 h-4 mr-2" />
+                    <Icon className="w-4 h-4 mr-1" />
                     {item.label}
                   </button>
                 );
@@ -344,11 +345,17 @@ const DashboardOverview = ({ setActiveTab }) => {
       });
       const profitData = await profitResponse.json();
 
+      // Calculate net profit and margin from new structure
+      const totalSales = profitData.total_sales || 0;
+      const totalExpenses = profitData.total_expenses || 0;
+      const netProfit = totalSales - totalExpenses;
+      const profitMargin = totalSales > 0 ? ((netProfit / totalSales) * 100) : 0;
+
       setStats({
         totalSales: salesData.total_revenue || 0,
         totalExpenses: expensesData.total_expenses || 0,
-        netProfit: profitData.overall?.net_profit || 0,
-        profitMargin: profitData.overall?.profit_margin || 0
+        netProfit,
+        profitMargin
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);

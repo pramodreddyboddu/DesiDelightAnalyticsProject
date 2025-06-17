@@ -393,60 +393,97 @@ def get_profitability_dashboard():
                 logging.error(f"Error processing expense data for category {exp.category}: {str(e)}")
                 expenses_dict[exp.category] = 0
         
-        # Map expense categories to sales categories
-        category_mapping = {
-            'Kitchen': ['Meat', 'Vegetables', 'Grocery', 'Uncategorized'],
-            'Meat': ['Meat'],
-            'Vegetables': ['Vegetables'],
-            'Grocery': ['Grocery']
+        # Explicit mapping from inventory category to expense category
+        category_expense_map = {
+            "Breakfast": "Kitchen",
+            "Breakfast Combo": "Kitchen",
+            "Veg Appetizers": "Kitchen",
+            "Non-Veg Appetizers": "Kitchen",
+            "Curries (Veg & Non-Veg)": "Kitchen",
+            "Biryani's": "Kitchen",
+            "Breads": "Kitchen",
+            "Pulav's": "Kitchen",
+            "Meat Items": "Meat",
+            "Groceries": "Grocery",
+            "Kaara Snacks": "Grocery",
+            "Vegetables": "Vegetables",
+            "Flowers": "Grocery",
+            "Frozen": "Grocery",
+            "Snacks": "Grocery",
+            "SEASONAL": "Kitchen",
+            "DD Specials": "Kitchen",
+            "Chat Specials": "Kitchen",
+            "Evening Specials": "Kitchen",
+            "Indo Chinese": "Kitchen",
+            "Drinks": "Kitchen",
+            "Kitchen Stocking": "Kitchen",
+            "Deserts": "Kitchen",
+            "SPECIALS": "Kitchen",
+            "Parota Specials": "Kitchen",
+            "DAILY SPECIALS": "Kitchen",
+            "DD Weekend Delight": "Kitchen",
+            "DD Family Pack Combos": "Kitchen",
+            "Week End Specials": "Kitchen",
+            "Monday Specials": "Kitchen",
+            "Tuesday Specials": "Kitchen",
+            "Wednesday Specials": "Kitchen",
+            "Thursday Specials": "Kitchen",
+            "Friday Specials": "Kitchen",
+            "Saturday Specials": "Kitchen",
+            "MELA 2024": "Kitchen",
+            "Thali": "Kitchen",
+            "Thali Curries": "Kitchen",
+            "Sunday Specials": "Kitchen",
+            "Diwali Crackers": "Kitchen",
+            "Biryani Combo's": "Kitchen",
+            "Appetizer Box": "Kitchen",
+            "Kids Special": "Kitchen",
+            "Unlimited Biryani": "Kitchen",
+            "Roll's": "Kitchen",
+            "New Year": "Kitchen",
+            "Winter Special": "Kitchen",
+            "Chef's Special": "Kitchen",
+            "Unlimited Dosa": "Kitchen",
+            "Desi Burgers": "Kitchen",
+            "Mandi": "Kitchen"
         }
-        
+
         profitability_data = []
         total_sales = sum(sales_dict.values())
         total_expenses = sum(expenses_dict.values())
-        
+
+        # Group sales by expense category using explicit mapping
+        expense_category_sales = {}
         for sales_category, sales_amount in sales_dict.items():
-            try:
-                # Find matching expenses
-                matching_expenses = 0
-                for exp_category, exp_amount in expenses_dict.items():
-                    if exp_category in category_mapping and sales_category in category_mapping[exp_category]:
-                        matching_expenses += exp_amount
-                    elif exp_category == sales_category:
-                        matching_expenses += exp_amount
-                
-                # If no direct match, allocate Kitchen expenses proportionally
-                if matching_expenses == 0 and 'Kitchen' in expenses_dict:
-                    kitchen_expenses = expenses_dict['Kitchen']
-                    allocation_ratio = sales_amount / total_sales if total_sales > 0 else 0
-                    matching_expenses = kitchen_expenses * allocation_ratio
-                
-                profit = sales_amount - matching_expenses
-                profit_margin = (profit / sales_amount * 100) if sales_amount > 0 else 0
-                
-                profitability_data.append({
-                    'category': sales_category,
-                    'sales': sales_amount,
-                    'expenses': matching_expenses,
-                    'profit': profit,
-                    'profit_margin': profit_margin
-                })
-            except Exception as e:
-                logging.error(f"Error calculating profitability for category {sales_category}: {str(e)}")
-                continue
+            expense_category = category_expense_map.get(sales_category, 'Grocery')  # Default to Grocery if not mapped
+            if expense_category not in expense_category_sales:
+                expense_category_sales[expense_category] = 0
+            expense_category_sales[expense_category] += sales_amount
+
+        # Calculate profitability for each expense category
+        for expense_category, sales_amount in expense_category_sales.items():
+            expense_amount = expenses_dict.get(expense_category, 0)
+            profit = sales_amount - expense_amount
+            profit_margin = (profit / sales_amount * 100) if sales_amount > 0 else 0
+
+            profitability_data.append({
+                'category': expense_category,
+                'sales': sales_amount,
+                'expenses': expense_amount,
+                'profit': profit,
+                'profit_margin': profit_margin,
+                'sales_percentage': (sales_amount / total_sales * 100) if total_sales > 0 else 0,
+                'expense_percentage': (expense_amount / total_expenses * 100) if total_expenses > 0 else 0
+            })
         
         # Overall profitability
         overall_profit = total_sales - total_expenses
         overall_margin = (overall_profit / total_sales * 100) if total_sales > 0 else 0
         
         return jsonify({
-            'overall': {
-                'total_sales': total_sales,
-                'total_expenses': total_expenses,
-                'net_profit': overall_profit,
-                'profit_margin': overall_margin
-            },
-            'by_category': profitability_data
+            'categories': profitability_data,
+            'total_sales': total_sales,
+            'total_expenses': total_expenses
         }), 200
         
     except Exception as e:

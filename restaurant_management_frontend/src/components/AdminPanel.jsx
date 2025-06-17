@@ -303,7 +303,10 @@ export const AdminPanel = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
+      <div className="flex items-center justify-between w-full mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
+        <span className="text-md text-gray-700 whitespace-nowrap ml-4">Welcome, Admin</span>
+      </div>
       
       {/* Data Management Section */}
       <Card>

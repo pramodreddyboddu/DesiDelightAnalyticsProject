@@ -15,9 +15,11 @@ export const SalesAnalyticsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     fetchSalesData();
+    fetchCategories();
   }, [dateRange, selectedCategory]);
 
   const fetchSalesData = async () => {
@@ -37,6 +39,22 @@ export const SalesAnalyticsDashboard = () => {
       console.error('Error fetching sales data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Extract unique categories from inventory items
+        const uniqueCategories = [...new Set(data.items.map(item => item.category))].filter(Boolean);
+        setCategories(uniqueCategories);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -109,13 +127,11 @@ export const SalesAnalyticsDashboard = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Meat">Meat</SelectItem>
-                <SelectItem value="Vegetables">Vegetables</SelectItem>
-                <SelectItem value="Grocery">Grocery</SelectItem>
-                <SelectItem value="Breakfast">Restaurant - Breakfast</SelectItem>
-                <SelectItem value="Lunch">Restaurant - Lunch</SelectItem>
-                <SelectItem value="Dinner">Restaurant - Dinner</SelectItem>
-                <SelectItem value="Uncategorized">Uncategorized</SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

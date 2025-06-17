@@ -102,7 +102,7 @@ export const ProfitabilityDashboard = () => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${profitData?.overall?.total_sales?.toFixed(2) || '0.00'}</div>
+            <div className="text-2xl font-bold">${profitData?.total_sales?.toFixed(2) || '0.00'}</div>
           </CardContent>
         </Card>
 
@@ -112,7 +112,7 @@ export const ProfitabilityDashboard = () => {
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${profitData?.overall?.total_expenses?.toFixed(2) || '0.00'}</div>
+            <div className="text-2xl font-bold">${profitData?.total_expenses?.toFixed(2) || '0.00'}</div>
           </CardContent>
         </Card>
 
@@ -122,9 +122,7 @@ export const ProfitabilityDashboard = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${(profitData?.overall?.net_profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${profitData?.overall?.net_profit?.toFixed(2) || '0.00'}
-            </div>
+            <div className={`text-2xl font-bold ${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)).toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -134,9 +132,7 @@ export const ProfitabilityDashboard = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${(profitData?.overall?.profit_margin || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {profitData?.overall?.profit_margin?.toFixed(1) || '0.0'}%
-            </div>
+            <div className={`text-2xl font-bold ${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{profitData?.total_sales > 0 ? (((profitData?.total_sales - profitData?.total_expenses) / profitData?.total_sales) * 100).toFixed(1) : '0.0'}%</div>
           </CardContent>
         </Card>
       </div>
@@ -151,7 +147,7 @@ export const ProfitabilityDashboard = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={profitData?.by_category || []}>
+              <BarChart data={profitData?.categories || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="category" />
                 <YAxis />
@@ -175,7 +171,7 @@ export const ProfitabilityDashboard = () => {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={profitData?.by_category?.filter(cat => cat.profit_margin > 0) || []}
+                  data={profitData?.categories?.filter(cat => cat.profit_margin > 0) || []}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -184,7 +180,7 @@ export const ProfitabilityDashboard = () => {
                   fill="#8884d8"
                   dataKey="profit_margin"
                 >
-                  {(profitData?.by_category?.filter(cat => cat.profit_margin > 0) || []).map((entry, index) => (
+                  {(profitData?.categories?.filter(cat => cat.profit_margin > 0) || []).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -214,19 +210,23 @@ export const ProfitabilityDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {(profitData?.by_category || []).map((category, index) => (
+                {(profitData?.categories || []).map((category, index) => (
                   <tr key={index} className="border-b hover:bg-gray-50">
                     <td className="p-3 font-medium">{category.category}</td>
                     <td className="p-3 text-right">${category.sales?.toFixed(2)}</td>
                     <td className="p-3 text-right">${category.expenses?.toFixed(2)}</td>
-                    <td className={`p-3 text-right font-medium ${category.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${category.profit?.toFixed(2)}
-                    </td>
-                    <td className={`p-3 text-right font-medium ${category.profit_margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {category.profit_margin?.toFixed(1)}%
-                    </td>
+                    <td className={`p-3 text-right font-medium ${category.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>${category.profit?.toFixed(2)}</td>
+                    <td className={`p-3 text-right font-medium ${category.profit_margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{category.profit_margin?.toFixed(1)}%</td>
                   </tr>
                 ))}
+                {/* Totals Row */}
+                <tr className="border-t font-bold bg-gray-100">
+                  <td className="p-3">Total</td>
+                  <td className="p-3 text-right">${profitData?.total_sales?.toFixed(2) || '0.00'}</td>
+                  <td className="p-3 text-right">${profitData?.total_expenses?.toFixed(2) || '0.00'}</td>
+                  <td className={`p-3 text-right ${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)).toFixed(2)}</td>
+                  <td className={`p-3 text-right ${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{profitData?.total_sales > 0 ? (((profitData?.total_sales - profitData?.total_expenses) / profitData?.total_sales) * 100).toFixed(1) : '0.0'}%</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -241,11 +241,11 @@ export const ProfitabilityDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {profitData?.by_category && (
+            {profitData?.categories && (
               <>
                 {/* Most Profitable Category */}
                 {(() => {
-                  const mostProfitable = profitData.by_category.reduce((max, cat) => 
+                  const mostProfitable = profitData.categories.reduce((max, cat) => 
                     cat.profit > (max?.profit || 0) ? cat : max, null);
                   return mostProfitable && (
                     <div className="p-4 bg-green-50 rounded-lg">
@@ -260,7 +260,7 @@ export const ProfitabilityDashboard = () => {
 
                 {/* Least Profitable Category */}
                 {(() => {
-                  const leastProfitable = profitData.by_category.reduce((min, cat) => 
+                  const leastProfitable = profitData.categories.reduce((min, cat) => 
                     cat.profit < (min?.profit || Infinity) ? cat : min, null);
                   return leastProfitable && leastProfitable.profit < 0 && (
                     <div className="p-4 bg-red-50 rounded-lg">
@@ -275,7 +275,7 @@ export const ProfitabilityDashboard = () => {
 
                 {/* High Margin Categories */}
                 {(() => {
-                  const highMarginCategories = profitData.by_category.filter(cat => cat.profit_margin > 20);
+                  const highMarginCategories = profitData.categories.filter(cat => cat.profit_margin > 20);
                   return highMarginCategories.length > 0 && (
                     <div className="p-4 bg-blue-50 rounded-lg">
                       <h4 className="font-medium text-blue-800">High Margin Opportunities</h4>
