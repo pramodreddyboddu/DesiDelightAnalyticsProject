@@ -1,31 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Calendar } from 'lucide-react';
+import debounce from 'lodash/debounce';
 
 // Simple date picker component since react-day-picker has peer dependency issues
 export const DatePickerWithRange = ({ date, setDate }) => {
   const [startDate, setStartDate] = useState(date?.from ? date.from.toISOString().split('T')[0] : '');
   const [endDate, setEndDate] = useState(date?.to ? date.to.toISOString().split('T')[0] : '');
 
+  // Debounced date update function
+  const debouncedSetDate = useCallback(
+    debounce((newStartDate, newEndDate) => {
+      setDate({
+        from: newStartDate ? new Date(newStartDate) : null,
+        to: newEndDate ? new Date(newEndDate) : null
+      });
+    }, 500),
+    [setDate]
+  );
+
   const handleStartDateChange = (e) => {
     const newStartDate = e.target.value;
     setStartDate(newStartDate);
-    setDate({
-      from: newStartDate ? new Date(newStartDate) : null,
-      to: endDate ? new Date(endDate) : null
-    });
+    debouncedSetDate(newStartDate, endDate);
   };
 
   const handleEndDateChange = (e) => {
     const newEndDate = e.target.value;
     setEndDate(newEndDate);
-    setDate({
-      from: startDate ? new Date(startDate) : null,
-      to: newEndDate ? new Date(newEndDate) : null
-    });
+    debouncedSetDate(startDate, newEndDate);
   };
 
   return (

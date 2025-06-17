@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, make_response
-from src.models.user import db, Item, UncategorizedItem, Sale, Expense, Chef
-from src.routes.auth import login_required, admin_required
+from ..models import db, Item, UncategorizedItem, Sale, Expense, Chef
+from ..routes.auth import login_required, admin_required
 from sqlalchemy import func, and_, or_
 from datetime import datetime
 import pandas as pd

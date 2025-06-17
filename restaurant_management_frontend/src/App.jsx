@@ -6,20 +6,28 @@ import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx';
 import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
+import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
+import { Download } from 'lucide-react';
 
 // Import the new dashboard components
 import { SalesAnalyticsDashboard } from './components/SalesAnalyticsDashboard.jsx';
 import { AdminPanel } from './components/AdminPanel.jsx';
 import { ProfitabilityDashboard } from './components/ProfitabilityDashboard.jsx';
 import { StaffPerformanceDashboard } from './components/StaffPerformanceDashboard.jsx';
+import { InventoryManagement } from './components/InventoryManagement.jsx';
 
 import { 
-  BarChart3, 
-  Upload, 
-  Users, 
   DollarSign, 
   TrendingUp, 
-  FileText,
+  TrendingDown, 
+  BarChart3, 
+  Upload, 
+  FileText, 
+  Users, 
+  Tag,
+  CheckCircle,
+  AlertCircle,
   LogOut,
   Menu,
   X
@@ -58,7 +66,7 @@ const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
+        setUser(data);
       } else {
         setUser(null);
       }
@@ -299,7 +307,7 @@ const Navigation = ({ activeTab, setActiveTab }) => {
 };
 
 // Dashboard Overview Component
-const DashboardOverview = () => {
+const DashboardOverview = ({ setActiveTab }) => {
   const [stats, setStats] = useState({
     totalSales: 0,
     totalExpenses: 0,
@@ -307,9 +315,13 @@ const DashboardOverview = () => {
     profitMargin: 0
   });
   const [loading, setLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [quickActions, setQuickActions] = useState([]);
 
   useEffect(() => {
     fetchDashboardStats();
+    fetchRecentActivity();
+    fetchQuickActions();
   }, []);
 
   const fetchDashboardStats = async () => {
@@ -345,23 +357,69 @@ const DashboardOverview = () => {
     }
   };
 
+  const fetchRecentActivity = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/recent-activity`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      setRecentActivity(data.activities || []);
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+    }
+  };
+
+  const fetchQuickActions = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/quick-actions`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      setQuickActions(data.actions || []);
+    } catch (error) {
+      console.error('Error fetching quick actions:', error);
+    }
+  };
+
+  const handleQuickAction = (action) => {
+    switch (action.id) {
+      case 'upload':
+        // Navigate to admin panel
+        setActiveTab('admin');
+        break;
+      case 'report':
+        // Navigate to reports
+        setActiveTab('reports');
+        break;
+      case 'staff':
+        // Navigate to staff performance
+        setActiveTab('chef-performance');
+        break;
+      case 'categorize':
+        // Navigate to inventory management
+        setActiveTab('inventory');
+        break;
+      default:
+        break;
+    }
+  };
+
   if (loading) {
     return <div className="p-6">Loading dashboard...</div>;
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Business Overview</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div className="p-6 space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.totalSales.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Grocery + Restaurant</p>
+            <p className="text-xs text-muted-foreground">Total Revenue</p>
           </CardContent>
         </Card>
 
@@ -372,20 +430,20 @@ const DashboardOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.totalExpenses.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">All Categories</p>
+            <p className="text-xs text-muted-foreground">Total Costs</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ${stats.netProfit.toFixed(2)}
             </div>
-            <p className="text-xs text-muted-foreground">Overall Business</p>
+            <p className="text-xs text-muted-foreground">Total Profit</p>
           </CardContent>
         </Card>
 
@@ -410,18 +468,24 @@ const DashboardOverview = () => {
             <CardDescription>Common tasks and operations</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button className="w-full justify-start">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Sales & Inventory Data
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <FileText className="w-4 h-4 mr-2" />
-              Generate Business Report
-            </Button>
-            <Button variant="outline" className="w-full justify-start">
-              <Users className="w-4 h-4 mr-2" />
-              View Staff Performance
-            </Button>
+            {quickActions.map((action) => (
+              <Button
+                key={action.id}
+                className={`w-full justify-start ${action.status === 'warning' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : ''}`}
+                onClick={() => handleQuickAction(action)}
+              >
+                {action.icon === 'upload' && <Upload className="w-4 h-4 mr-2" />}
+                {action.icon === 'file-text' && <FileText className="w-4 h-4 mr-2" />}
+                {action.icon === 'users' && <Users className="w-4 h-4 mr-2" />}
+                {action.icon === 'tag' && <Tag className="w-4 h-4 mr-2" />}
+                {action.label}
+                {action.count > 0 && (
+                  <span className="ml-2 bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded-full text-xs">
+                    {action.count}
+                  </span>
+                )}
+              </Button>
+            ))}
           </CardContent>
         </Card>
 
@@ -432,27 +496,21 @@ const DashboardOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Inventory & sales data uploaded</p>
-                  <p className="text-xs text-gray-500">2 hours ago</p>
+              {recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center space-x-4">
+                  <div className={`w-2 h-2 rounded-full ${
+                    activity.status === 'success' ? 'bg-green-500' :
+                    activity.status === 'warning' ? 'bg-yellow-500' :
+                    'bg-blue-500'
+                  }`}></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{activity.message}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(activity.timestamp).toLocaleString('en-US', { timeZone: 'America/Chicago' })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Business report generated</p>
-                  <p className="text-xs text-gray-500">1 day ago</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New grocery items need categorization</p>
-                  <p className="text-xs text-gray-500">2 days ago</p>
-                </div>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -468,30 +526,141 @@ const ChefPerformanceTab = () => <StaffPerformanceDashboard />;
 
 const ProfitabilityTab = () => <ProfitabilityDashboard />;
 
-const InventoryTab = () => (
-  <div className="p-6">
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">Inventory Management</h2>
-    <p className="text-gray-600">Inventory tracking and categorization for all products will be implemented here.</p>
-  </div>
-);
+const InventoryTab = () => <InventoryManagement />;
 
-const ReportsTab = () => (
-  <div className="p-6">
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">Reports & Export</h2>
-    <p className="text-gray-600">Comprehensive reporting and export functionality for all business data will be implemented here.</p>
-  </div>
-);
+// Reports Tab Component
+const ReportsTab = () => {
+  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [selectedReport, setSelectedReport] = useState('sales');
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async (format) => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
+      if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
+      params.append('format', format);
+
+      const response = await fetch(`${API_BASE_URL}/reports/${selectedReport}?${params}`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `${selectedReport}_report.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Error exporting report:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Reports & Export</h2>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Generate Report</CardTitle>
+          <CardDescription>Select report type and date range to generate comprehensive business reports</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label>Report Type</Label>
+              <Select value={selectedReport} onValueChange={setSelectedReport}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select report type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sales">Sales Report</SelectItem>
+                  <SelectItem value="profitability">Profitability Report</SelectItem>
+                  <SelectItem value="chef-performance">Chef Performance Report</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Date Range</Label>
+              <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+            </div>
+          </div>
+
+          <div className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => handleExport('csv')}
+              disabled={loading}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => handleExport('excel')}
+              disabled={loading}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Excel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Report Types</CardTitle>
+          <CardDescription>Available report types and their contents</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-semibold">Sales Report</h3>
+              <p className="text-sm text-gray-600">
+                Comprehensive sales data including item details, quantities, revenue, discounts, and taxes.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Profitability Report</h3>
+              <p className="text-sm text-gray-600">
+                Detailed analysis of sales, expenses, and profit margins across different categories.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Chef Performance Report</h3>
+              <p className="text-sm text-gray-600">
+                Performance metrics for chefs including sales attribution, dish popularity, and revenue analysis.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const AdminTab = () => <AdminPanel />;
 
 // Main App Component
 const MainApp = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const { user, logout } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardOverview />;
+        return <DashboardOverview setActiveTab={setActiveTab} />;
       case 'sales':
         return <SalesTab />;
       case 'chef-performance':
@@ -505,7 +674,7 @@ const MainApp = () => {
       case 'admin':
         return <AdminTab />;
       default:
-        return <DashboardOverview />;
+        return <DashboardOverview setActiveTab={setActiveTab} />;
     }
   };
 

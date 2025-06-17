@@ -141,7 +141,7 @@ export const SalesAnalyticsDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {salesData?.category_breakdown?.reduce((sum, cat) => sum + cat.count, 0) || 0}
+              {salesData?.unique_order_count || 0}
             </div>
           </CardContent>
         </Card>
@@ -153,8 +153,8 @@ export const SalesAnalyticsDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${salesData?.category_breakdown?.length > 0 
-                ? (salesData.total_revenue / salesData.category_breakdown.reduce((sum, cat) => sum + cat.count, 0)).toFixed(2)
+              ${salesData?.unique_order_count > 0 
+                ? (salesData.total_revenue / salesData.unique_order_count).toFixed(2)
                 : '0.00'}
             </div>
           </CardContent>
@@ -221,7 +221,7 @@ export const SalesAnalyticsDashboard = () => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={salesData?.daily_trend || []}>
+            <LineChart data={salesData?.daily_sales || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
