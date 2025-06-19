@@ -414,7 +414,7 @@ const DashboardOverview = ({ setActiveTab }) => {
   };
 
   if (loading) {
-    return <div className="p-6">Loading dashboard...</div>;
+    return <LoadingSpinner size="lg" text="Loading dashboard..." />;
   }
 
   return (
@@ -704,7 +704,7 @@ const ProtectedRoute = ({ children }) => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+        <LoadingSpinner size="xl" text="Loading application..." />
       </div>
     );
   }

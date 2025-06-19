@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
+import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 
@@ -65,7 +66,7 @@ export const ProfitabilityDashboard = () => {
   };
 
   if (loading) {
-    return <div className="p-6">Loading profitability analysis...</div>;
+    return <LoadingSpinner size="lg" text="Loading profitability data..." />;
   }
 
   return (

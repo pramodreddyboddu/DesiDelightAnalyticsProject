@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
+import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Download, Filter, TrendingUp, DollarSign } from 'lucide-react';
 
@@ -87,7 +88,7 @@ export const SalesAnalyticsDashboard = () => {
   };
 
   if (loading) {
-    return <div className="p-6">Loading sales analytics...</div>;
+    return <LoadingSpinner size="lg" text="Loading sales analytics..." />;
   }
 
   return (

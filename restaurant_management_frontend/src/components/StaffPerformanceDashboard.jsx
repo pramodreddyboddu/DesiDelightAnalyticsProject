@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
+import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, Users, Award, TrendingUp } from 'lucide-react';
 
@@ -44,6 +45,7 @@ export const StaffPerformanceDashboard = () => {
       const params = new URLSearchParams();
       if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
       if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
+      if (selectedChef !== 'all') params.append('chef_id', selectedChef);
       params.append('format', format);
 
       const response = await fetch(`${API_BASE_URL}/reports/chef-performance?${params}`, {
@@ -56,7 +58,7 @@ export const StaffPerformanceDashboard = () => {
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = url;
-        a.download = `staff_performance_report.${format}`;
+        a.download = `chef_performance_report.${format}`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -67,7 +69,7 @@ export const StaffPerformanceDashboard = () => {
   };
 
   if (loading) {
-    return <div className="p-6">Loading staff performance data...</div>;
+    return <LoadingSpinner size="lg" text="Loading staff performance data..." />;
   }
 
   return (

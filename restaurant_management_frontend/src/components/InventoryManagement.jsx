@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.jsx';
+import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { Search, Filter } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -47,7 +48,7 @@ export const InventoryManagement = () => {
   });
 
   if (loading) {
-    return <div className="p-6">Loading inventory...</div>;
+    return <LoadingSpinner size="lg" text="Loading inventory data..." />;
   }
 
   return (
