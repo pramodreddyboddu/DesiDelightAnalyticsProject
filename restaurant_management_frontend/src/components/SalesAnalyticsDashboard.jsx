@@ -4,62 +4,36 @@ import { Button } from '@/components/ui/button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
+import { useToast } from '@/components/ui/toast.jsx';
+import { useApiData, useApiMutation } from '@/hooks/use-api.js';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Download, Filter, TrendingUp, DollarSign } from 'lucide-react';
-
-const API_BASE_URL = 'http://localhost:5000/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const SalesAnalyticsDashboard = () => {
-  const [salesData, setSalesData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
+  const { success, error: showError } = useToast();
 
+  // Use API hooks for data fetching with caching
+  const { data: salesData, loading, error, refresh } = useApiData('/dashboard/sales-summary', [dateRange, selectedCategory]);
+  const { data: inventoryData } = useApiData('/inventory', []);
+  const { mutate: exportReport, loading: exportLoading } = useApiMutation('/reports/sales', {
+    successMessage: 'Report exported successfully!',
+    invalidateCache: '/dashboard'
+  });
+
+  // Extract categories from inventory data
   useEffect(() => {
-    fetchSalesData();
-    fetchCategories();
-  }, [dateRange, selectedCategory]);
-
-  const fetchSalesData = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
-      if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
-      if (selectedCategory !== 'all') params.append('category', selectedCategory);
-
-      const response = await fetch(`${API_BASE_URL}/dashboard/sales-summary?${params}`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setSalesData(data);
-    } catch (error) {
-      console.error('Error fetching sales data:', error);
-    } finally {
-      setLoading(false);
+    if (inventoryData?.items) {
+      const uniqueCategories = [...new Set(inventoryData.items.map(item => item.category))].filter(Boolean);
+      setCategories(uniqueCategories);
     }
-  };
+  }, [inventoryData]);
 
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/inventory`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        // Extract unique categories from inventory items
-        const uniqueCategories = [...new Set(data.items.map(item => item.category))].filter(Boolean);
-        setCategories(uniqueCategories);
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
-
-  const exportReport = async (format) => {
+  const handleExport = async (format) => {
     try {
       const params = new URLSearchParams();
       if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
@@ -67,7 +41,7 @@ export const SalesAnalyticsDashboard = () => {
       if (selectedCategory !== 'all') params.append('category', selectedCategory);
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/reports/sales?${params}`, {
+      const response = await fetch(`http://localhost:5000/api/reports/sales?${params}`, {
         credentials: 'include'
       });
 
@@ -81,11 +55,21 @@ export const SalesAnalyticsDashboard = () => {
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
+        success('Export Successful', `Sales report downloaded as ${format.toUpperCase()}`);
+      } else {
+        throw new Error('Export failed');
       }
     } catch (error) {
-      console.error('Error exporting report:', error);
+      showError('Export Failed', 'Failed to download the report. Please try again.');
     }
   };
+
+  // Show error toast if API call fails
+  useEffect(() => {
+    if (error) {
+      showError('Failed to load sales data', error);
+    }
+  }, [error, showError]);
 
   if (loading) {
     return <LoadingSpinner size="lg" text="Loading sales analytics..." />;
@@ -96,11 +80,11 @@ export const SalesAnalyticsDashboard = () => {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Sales Analytics Dashboard</h2>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => exportReport('csv')}>
+          <Button variant="outline" onClick={() => handleExport('csv')}>
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
-          <Button variant="outline" onClick={() => exportReport('excel')}>
+          <Button variant="outline" onClick={() => handleExport('excel')}>
             <Download className="w-4 h-4 mr-2" />
             Export Excel
           </Button>

@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
+import { useToast } from '@/components/ui/toast.jsx';
+import { useApiData } from '@/hooks/use-api.js';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, Users, Award, TrendingUp } from 'lucide-react';
 
@@ -11,36 +13,21 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const StaffPerformanceDashboard = () => {
-  const [performanceData, setPerformanceData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [selectedChef, setSelectedChef] = useState('all');
+  const { success, error: showError } = useToast();
 
+  // Use API hooks for data fetching with caching
+  const { data: performanceData, loading, error } = useApiData('/dashboard/chef-performance', [dateRange, selectedChef]);
+
+  // Show error toast if API call fails
   useEffect(() => {
-    fetchPerformanceData();
-  }, [dateRange, selectedChef]);
-
-  const fetchPerformanceData = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
-      if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
-      if (selectedChef !== 'all') params.append('chef_id', selectedChef);
-
-      const response = await fetch(`${API_BASE_URL}/dashboard/chef-performance?${params}`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setPerformanceData(data);
-    } catch (error) {
-      console.error('Error fetching performance data:', error);
-    } finally {
-      setLoading(false);
+    if (error) {
+      showError('Failed to load staff performance data', error);
     }
-  };
+  }, [error, showError]);
 
-  const exportReport = async (format) => {
+  const handleExport = async (format) => {
     try {
       const params = new URLSearchParams();
       if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
@@ -48,7 +35,7 @@ export const StaffPerformanceDashboard = () => {
       if (selectedChef !== 'all') params.append('chef_id', selectedChef);
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/reports/chef-performance?${params}`, {
+      const response = await fetch(`http://localhost:5000/api/reports/chef-performance?${params}`, {
         credentials: 'include'
       });
 
@@ -62,9 +49,12 @@ export const StaffPerformanceDashboard = () => {
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
+        success('Export Successful', `Chef performance report downloaded as ${format.toUpperCase()}`);
+      } else {
+        throw new Error('Export failed');
       }
     } catch (error) {
-      console.error('Error exporting report:', error);
+      showError('Export Failed', 'Failed to download the report. Please try again.');
     }
   };
 
@@ -77,11 +67,11 @@ export const StaffPerformanceDashboard = () => {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Staff Performance Analytics</h2>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => exportReport('csv')}>
+          <Button variant="outline" onClick={() => handleExport('csv')}>
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
-          <Button variant="outline" onClick={() => exportReport('excel')}>
+          <Button variant="outline" onClick={() => handleExport('excel')}>
             <Download className="w-4 h-4 mr-2" />
             Export Excel
           </Button>

@@ -4,42 +4,35 @@ import { Input } from '@/components/ui/input.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
+import { useToast } from '@/components/ui/toast.jsx';
+import { useApiData } from '@/hooks/use-api.js';
 import { Search, Filter } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
-
 export const InventoryManagement = () => {
-  const [inventory, setInventory] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
+  const { error: showError } = useToast();
 
+  // Use API hooks for data fetching with caching
+  const { data: inventoryData, loading, error } = useApiData('/inventory', []);
+
+  // Extract categories and handle errors
   useEffect(() => {
-    fetchInventory();
-  }, []);
-
-  const fetchInventory = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/inventory`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setInventory(data.items || []);
-        
-        // Extract unique categories
-        const uniqueCategories = [...new Set(data.items.map(item => item.category))];
-        setCategories(uniqueCategories);
-      }
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-    } finally {
-      setLoading(false);
+    if (inventoryData?.items) {
+      const uniqueCategories = [...new Set(inventoryData.items.map(item => item.category))];
+      setCategories(uniqueCategories);
     }
-  };
+  }, [inventoryData]);
 
-  const filteredInventory = inventory.filter(item => {
+  // Show error toast if API call fails
+  useEffect(() => {
+    if (error) {
+      showError('Failed to load inventory data', error);
+    }
+  }, [error, showError]);
+
+  const filteredInventory = (inventoryData?.items || []).filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.product_code?.toLowerCase().includes(searchTerm.toLowerCase());

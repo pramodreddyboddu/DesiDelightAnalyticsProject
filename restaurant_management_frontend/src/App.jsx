@@ -9,8 +9,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
-import { ToastProvider } from '@/components/ui/toast.jsx';
+import { ToastProvider, useToast } from '@/components/ui/toast.jsx';
 import { Download } from 'lucide-react';
+import { useApiData } from '@/hooks/use-api.js';
 
 // Import the new dashboard components
 import { SalesAnalyticsDashboard } from './components/SalesAnalyticsDashboard.jsx';
@@ -317,95 +318,71 @@ const DashboardOverview = ({ setActiveTab }) => {
     netProfit: 0,
     profitMargin: 0
   });
-  const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
   const [quickActions, setQuickActions] = useState([]);
+  const { error: showError } = useToast();
 
+  // Use API hooks for data fetching with caching
+  const { data: salesData, loading: salesLoading, error: salesError } = useApiData('/dashboard/sales-summary', []);
+  const { data: expensesData, loading: expensesLoading, error: expensesError } = useApiData('/dashboard/expenses', []);
+  const { data: profitData, loading: profitLoading, error: profitError } = useApiData('/dashboard/profitability', []);
+  const { data: activityData, loading: activityLoading, error: activityError } = useApiData('/dashboard/recent-activity', []);
+  const { data: actionsData, loading: actionsLoading, error: actionsError } = useApiData('/dashboard/quick-actions', []);
+
+  // Calculate loading state
+  const loading = salesLoading || expensesLoading || profitLoading || activityLoading || actionsLoading;
+
+  // Show error toasts if API calls fail
   useEffect(() => {
-    fetchDashboardStats();
-    fetchRecentActivity();
-    fetchQuickActions();
-  }, []);
+    if (salesError) showError('Failed to load sales data', salesError);
+    if (expensesError) showError('Failed to load expenses data', expensesError);
+    if (profitError) showError('Failed to load profitability data', profitError);
+    if (activityError) showError('Failed to load recent activity', activityError);
+    if (actionsError) showError('Failed to load quick actions', actionsError);
+  }, [salesError, expensesError, profitError, activityError, actionsError, showError]);
 
-  const fetchDashboardStats = async () => {
-    try {
-      // Fetch sales summary
-      const salesResponse = await fetch(`${API_BASE_URL}/dashboard/sales-summary`, {
-        credentials: 'include'
-      });
-      const salesData = await salesResponse.json();
-
-      // Fetch expenses
-      const expensesResponse = await fetch(`${API_BASE_URL}/dashboard/expenses`, {
-        credentials: 'include'
-      });
-      const expensesData = await expensesResponse.json();
-
-      // Fetch profitability
-      const profitResponse = await fetch(`${API_BASE_URL}/dashboard/profitability`, {
-        credentials: 'include'
-      });
-      const profitData = await profitResponse.json();
-
-      // Calculate net profit and margin from new structure
-      const totalSales = profitData.total_sales || 0;
-      const totalExpenses = profitData.total_expenses || 0;
+  // Calculate stats when data is available
+  useEffect(() => {
+    if (salesData && expensesData && profitData) {
+      const totalSales = salesData.total_revenue || 0;
+      const totalExpenses = expensesData.total_expenses || 0;
       const netProfit = totalSales - totalExpenses;
       const profitMargin = totalSales > 0 ? ((netProfit / totalSales) * 100) : 0;
 
       setStats({
-        totalSales: salesData.total_revenue || 0,
-        totalExpenses: expensesData.total_expenses || 0,
+        totalSales,
+        totalExpenses,
         netProfit,
         profitMargin
       });
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [salesData, expensesData, profitData]);
 
-  const fetchRecentActivity = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/recent-activity`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setRecentActivity(data.activities || []);
-    } catch (error) {
-      console.error('Error fetching recent activity:', error);
+  // Set recent activity and quick actions when data is available
+  useEffect(() => {
+    if (activityData) {
+      setRecentActivity(activityData.activities || []);
     }
-  };
+  }, [activityData]);
 
-  const fetchQuickActions = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/quick-actions`, {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      setQuickActions(data.actions || []);
-    } catch (error) {
-      console.error('Error fetching quick actions:', error);
+  useEffect(() => {
+    if (actionsData) {
+      setQuickActions(actionsData.actions || []);
     }
-  };
+  }, [actionsData]);
 
   const handleQuickAction = (action) => {
     switch (action.id) {
       case 'upload':
-        // Navigate to admin panel
         setActiveTab('admin');
         break;
       case 'report':
-        // Navigate to reports
         setActiveTab('reports');
         break;
       case 'staff':
-        // Navigate to staff performance
         setActiveTab('chef-performance');
         break;
       case 'categorize':
-        // Navigate to inventory management
         setActiveTab('inventory');
         break;
       default:

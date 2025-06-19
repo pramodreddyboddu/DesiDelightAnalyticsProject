@@ -6,6 +6,9 @@ import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
 import { Progress } from '@/components/ui/progress.jsx';
+import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
+import { useToast } from '@/components/ui/toast.jsx';
+import { useApiData, useApiMutation } from '@/hooks/use-api.js';
 import { Upload, FileText, CheckCircle, AlertCircle, X, Trash2, Database, Calendar, RefreshCw } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import {
@@ -27,65 +30,44 @@ export const AdminPanel = () => {
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [selectedDataType, setSelectedDataType] = useState('');
-  const [dataStats, setDataStats] = useState({
-    sales: { count: 0, lastUpdated: null },
-    inventory: { count: 0, lastUpdated: null },
-    expenses: { count: 0, lastUpdated: null },
-    chefMapping: { count: 0, lastUpdated: null }
-  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState({ status: '', message: '' });
-  const [dataStatsCache, setDataStatsCache] = useState(null);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
+  
+  const { success, error: showError, info } = useToast();
 
-  // Debounced fetch function
-  const debouncedFetchDataStats = useCallback(
-    debounce(async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/admin/data-stats`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const stats = await response.json();
-          console.log('Received data stats:', stats); // Debug log
-          
-          // Format timestamps before setting state
-          const formattedStats = {
-            sales: { 
-              count: stats.sales?.count || 0, 
-              lastUpdated: stats.sales?.last_updated ? new Date(stats.sales.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
-            },
-            inventory: { 
-              count: stats.inventory?.count || 0, 
-              lastUpdated: stats.inventory?.last_updated ? new Date(stats.inventory.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
-            },
-            expenses: { 
-              count: stats.expenses?.count || 0, 
-              lastUpdated: stats.expenses?.last_updated ? new Date(stats.expenses.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
-            },
-            chefMapping: { 
-              count: stats.chef_mapping?.count || 0, 
-              lastUpdated: stats.chef_mapping?.last_updated ? new Date(stats.chef_mapping.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
-            }
-          };
-          
-          setDataStats(formattedStats);
-          setDataStatsCache(stats);
-          setLastFetchTime(Date.now());
-        }
-      } catch (error) {
-        console.error('Error fetching data stats:', error);
-      }
-    }, 1000),
-    []
-  );
+  // Use API hooks for data fetching with caching
+  const { data: dataStats, loading: statsLoading, error: statsError, refresh: refreshStats } = useApiData('/admin/data-stats', []);
+  const { mutate: deleteData, loading: deleteLoading } = useApiMutation('/admin/delete-data', {
+    successMessage: 'Data deleted successfully!',
+    invalidateCache: '/admin'
+  });
 
+  // Show error toast if API call fails
   useEffect(() => {
-    // Only fetch if cache is older than 30 seconds
-    if (!dataStatsCache || Date.now() - lastFetchTime > 30000) {
-      debouncedFetchDataStats();
+    if (statsError) {
+      showError('Failed to load admin data', statsError);
     }
-  }, []);
+  }, [statsError, showError]);
+
+  // Format data stats for display
+  const formattedStats = dataStats ? {
+    sales: { 
+      count: dataStats.sales?.count || 0, 
+      lastUpdated: dataStats.sales?.last_updated ? new Date(dataStats.sales.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
+    },
+    inventory: { 
+      count: dataStats.inventory?.count || 0, 
+      lastUpdated: dataStats.inventory?.last_updated ? new Date(dataStats.inventory.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
+    },
+    expenses: { 
+      count: dataStats.expenses?.count || 0, 
+      lastUpdated: dataStats.expenses?.last_updated ? new Date(dataStats.expenses.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
+    },
+    chefMapping: { 
+      count: dataStats.chef_mapping?.count || 0, 
+      lastUpdated: dataStats.chef_mapping?.last_updated ? new Date(dataStats.chef_mapping.last_updated).toLocaleString('en-US', { timeZone: 'America/Chicago' }) : 'Never'
+    }
+  } : null;
 
   const handleFileUpload = async (fileType, file) => {
     if (!file) return;
@@ -119,8 +101,11 @@ export const AdminPanel = () => {
           }
         }));
         
+        // Show success toast
+        success('Upload Successful', `Processed ${result.processed_records} records successfully`);
+        
         // Refresh data stats and uncategorized items
-        debouncedFetchDataStats();
+        refreshStats();
         if (fileType === 'sales') {
           fetchUncategorizedItems();
         }
@@ -132,6 +117,7 @@ export const AdminPanel = () => {
             message: result.error || 'Upload failed'
           }
         }));
+        showError('Upload Failed', result.error || 'Upload failed');
       }
     } catch (error) {
       setUploadStatus(prev => ({
@@ -141,6 +127,7 @@ export const AdminPanel = () => {
           message: 'Network error occurred'
         }
       }));
+      showError('Upload Failed', 'Network error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -148,10 +135,7 @@ export const AdminPanel = () => {
 
   const handleDeleteData = async () => {
     if (!dateRange.from || !dateRange.to || !selectedDataType) {
-      setDeleteStatus({
-        status: 'error',
-        message: 'Please select both date range and data type'
-      });
+      showError('Validation Error', 'Please select both date range and data type');
       return;
     }
 
@@ -186,10 +170,8 @@ export const AdminPanel = () => {
           }
         }
 
-        setDeleteStatus({
-          status: 'success',
-          message: `Successfully deleted ${totalDeleted} records across all data types`
-        });
+        success('Delete Successful', `Successfully deleted ${totalDeleted} records across all data types`);
+        refreshStats();
       } else {
         // Delete single data type
         const response = await fetch(`${API_BASE_URL}/admin/delete-data`, {
@@ -208,22 +190,14 @@ export const AdminPanel = () => {
         const result = await response.json();
 
         if (response.ok) {
-          setDeleteStatus({
-            status: 'success',
-            message: `Successfully deleted ${result.deleted_count} records`
-          });
+          success('Delete Successful', `Successfully deleted ${result.deleted_count} records`);
+          refreshStats();
         } else {
           throw new Error(result.error || 'Delete operation failed');
         }
       }
-      
-      // Refresh stats after deletion
-      debouncedFetchDataStats();
     } catch (error) {
-      setDeleteStatus({
-        status: 'error',
-        message: error.message || 'Network error occurred'
-      });
+      showError('Delete Failed', error.message || 'Delete operation failed');
     } finally {
       setLoading(false);
       setDeleteDialogOpen(false);
@@ -238,7 +212,7 @@ export const AdminPanel = () => {
       const data = await response.json();
       setUncategorizedItems(data.uncategorized_items || []);
     } catch (error) {
-      console.error('Error fetching uncategorized items:', error);
+      showError('Failed to load uncategorized items', error.message);
     }
   };
 
@@ -255,9 +229,12 @@ export const AdminPanel = () => {
 
       if (response.ok) {
         setUncategorizedItems(prev => prev.filter(item => item.id !== itemId));
+        success('Item Categorized', `Item successfully categorized as ${category}`);
+      } else {
+        throw new Error('Failed to categorize item');
       }
     } catch (error) {
-      console.error('Error categorizing item:', error);
+      showError('Categorization Failed', error.message || 'Failed to categorize item');
     }
   };
 
@@ -321,36 +298,36 @@ export const AdminPanel = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 bg-blue-50 rounded-lg">
               <h3 className="font-medium text-blue-800">Sales Data</h3>
-              <p className="text-2xl font-bold text-blue-600">{dataStats?.sales?.count || 0}</p>
+              <p className="text-2xl font-bold text-blue-600">{formattedStats?.sales?.count || 0}</p>
               <p className="text-sm text-blue-600">
-                Last updated: {dataStats?.sales?.lastUpdated}
+                Last updated: {formattedStats?.sales?.lastUpdated}
               </p>
             </div>
             <div className="p-4 bg-green-50 rounded-lg">
               <h3 className="font-medium text-green-800">Inventory Items</h3>
-              <p className="text-2xl font-bold text-green-600">{dataStats?.inventory?.count || 0}</p>
+              <p className="text-2xl font-bold text-green-600">{formattedStats?.inventory?.count || 0}</p>
               <p className="text-sm text-green-600">
-                Last updated: {dataStats?.inventory?.lastUpdated}
+                Last updated: {formattedStats?.inventory?.lastUpdated}
               </p>
             </div>
             <div className="p-4 bg-yellow-50 rounded-lg">
               <h3 className="font-medium text-yellow-800">Expenses</h3>
-              <p className="text-2xl font-bold text-yellow-600">{dataStats?.expenses?.count || 0}</p>
+              <p className="text-2xl font-bold text-yellow-600">{formattedStats?.expenses?.count || 0}</p>
               <p className="text-sm text-yellow-600">
-                Last updated: {dataStats?.expenses?.lastUpdated}
+                Last updated: {formattedStats?.expenses?.lastUpdated}
               </p>
             </div>
             <div className="p-4 bg-purple-50 rounded-lg">
               <h3 className="font-medium text-purple-800">Chef Mappings</h3>
-              <p className="text-2xl font-bold text-purple-600">{dataStats?.chefMapping?.count || 0}</p>
+              <p className="text-2xl font-bold text-purple-600">{formattedStats?.chefMapping?.count || 0}</p>
               <p className="text-sm text-purple-600">
-                Last updated: {dataStats?.chefMapping?.lastUpdated}
+                Last updated: {formattedStats?.chefMapping?.lastUpdated}
               </p>
             </div>
           </div>
 
           <div className="mt-6 flex justify-end space-x-4">
-            <Button variant="outline" onClick={debouncedFetchDataStats}>
+            <Button variant="outline" onClick={refreshStats}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh Stats
             </Button>
