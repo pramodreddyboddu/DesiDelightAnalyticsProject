@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
@@ -7,18 +7,27 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { useToast } from '@/components/ui/toast.jsx';
 import { useApiData } from '@/hooks/use-api.js';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, Users, Award, TrendingUp } from 'lucide-react';
+import { Download, Users, Award, TrendingUp, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge.jsx';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.jsx';
+import { Checkbox } from '@/components/ui/checkbox.jsx';
+import { cn } from '@/lib/utils';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const StaffPerformanceDashboard = () => {
   const [dateRange, setDateRange] = useState({ from: null, to: null });
-  const [selectedChef, setSelectedChef] = useState('all');
+  const [selectedChefs, setSelectedChefs] = useState(['all']);
+  const [tempSelectedChefs, setTempSelectedChefs] = useState(['all']);
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
   const { success, error: showError } = useToast();
 
-  // Use API hooks for data fetching with caching
-  const { data: performanceData, loading, error } = useApiData('/dashboard/chef-performance', [dateRange, selectedChef]);
+  // Use API hooks for data fetching with caching - only depends on dateRange now
+  const { data: performanceData, loading, error, refresh } = useApiData('/dashboard/chef-performance', {
+    start_date: dateRange.from?.toISOString(),
+    end_date: dateRange.to?.toISOString()
+  });
 
   // Show error toast if API call fails
   useEffect(() => {
@@ -27,15 +36,103 @@ export const StaffPerformanceDashboard = () => {
     }
   }, [error, showError]);
 
+  // Initialize temp selection when popover opens
+  useEffect(() => {
+    if (isSelectOpen) {
+      setTempSelectedChefs(selectedChefs);
+    }
+  }, [isSelectOpen]);
+
+  // Handle temporary chef selection
+  const handleTempChefSelection = (chefId) => {
+    setTempSelectedChefs(prev => {
+      if (chefId === 'all') {
+        return ['all'];
+      }
+      const newSelection = prev.filter(id => id !== 'all');
+      if (newSelection.includes(chefId)) {
+        const filtered = newSelection.filter(id => id !== chefId);
+        return filtered.length === 0 ? ['all'] : filtered;
+      }
+      return [...newSelection, chefId];
+    });
+  };
+
+  // Handle checkbox change
+  const handleCheckboxChange = (chefId, checked) => {
+    if (checked) {
+      if (chefId === 'all') {
+        setTempSelectedChefs(['all']);
+      } else {
+        setTempSelectedChefs(prev => {
+          // If 'all' was selected, remove it and add all individual chefs except the current one
+          if (prev.includes('all')) {
+            const allChefIds = performanceData?.chef_summary?.map(chef => chef.id.toString()) || [];
+            return allChefIds.filter(id => id !== chefId);
+          }
+          // Add the new chef to selection
+          return [...prev, chefId];
+        });
+      }
+    } else {
+      if (chefId === 'all') {
+        // When unchecking 'all', select no chefs
+        setTempSelectedChefs([]);
+      } else {
+        // Remove the chef from selection
+        setTempSelectedChefs(prev => prev.filter(id => id !== chefId));
+      }
+    }
+  };
+
+  // Apply the selection when Done is clicked
+  const applySelection = () => {
+    setSelectedChefs(tempSelectedChefs);
+    setIsSelectOpen(false);
+  };
+
+  // Cancel selection
+  const cancelSelection = () => {
+    setTempSelectedChefs(selectedChefs);
+    setIsSelectOpen(false);
+  };
+
+  // Remove a chef from selection
+  const removeChef = (chefId) => {
+    const newSelection = selectedChefs.filter(id => id !== chefId);
+    setSelectedChefs(newSelection.length === 0 ? ['all'] : newSelection);
+    setTempSelectedChefs(newSelection.length === 0 ? ['all'] : newSelection);
+  };
+
+  // Filter data based on selected chefs - this is now a local filter
+  const filteredChefSummary = useMemo(() => {
+    if (!performanceData?.chef_summary) return [];
+    if (selectedChefs.includes('all')) return performanceData.chef_summary;
+    return performanceData.chef_summary.filter(chef => 
+      selectedChefs.includes(chef.id.toString())
+    );
+  }, [performanceData, selectedChefs]);
+
+  // Filter performance data based on selected chefs
+  const filteredChefPerformance = useMemo(() => {
+    if (!performanceData?.chef_performance) return [];
+    if (selectedChefs.includes('all')) return performanceData.chef_performance;
+    return performanceData.chef_performance.filter(chef => 
+      selectedChefs.includes(performanceData.chef_summary.find(c => c.name === chef.chef_name)?.id.toString())
+    );
+  }, [performanceData, selectedChefs]);
+
   const handleExport = async (format) => {
     try {
       const params = new URLSearchParams();
       if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
       if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
-      if (selectedChef !== 'all') params.append('chef_id', selectedChef);
+      if (!selectedChefs.includes('all')) {
+        params.append('chef_ids', selectedChefs.join(','));
+      }
       params.append('format', format);
 
-      const response = await fetch(`http://localhost:5000/api/reports/chef-performance?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/chef-performance?${params}`, {
         credentials: 'include'
       });
 
@@ -62,6 +159,11 @@ export const StaffPerformanceDashboard = () => {
     return <LoadingSpinner size="lg" text="Loading staff performance data..." />;
   }
 
+  // Calculate totals based on filtered data
+  const totalStaffMembers = filteredChefSummary.length;
+  const totalRevenue = filteredChefSummary.reduce((sum, chef) => sum + (chef.total_revenue || 0), 0);
+  const totalSales = filteredChefSummary.reduce((sum, chef) => sum + (chef.total_sales || 0), 0);
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -83,26 +185,124 @@ export const StaffPerformanceDashboard = () => {
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
-        <CardContent className="flex space-x-4">
+        <CardContent className="space-y-4">
           <div className="flex-1">
             <label className="text-sm font-medium">Date Range</label>
             <DatePickerWithRange date={dateRange} setDate={setDateRange} />
           </div>
-          <div className="flex-1">
-            <label className="text-sm font-medium">Staff Member</label>
-            <Select value={selectedChef} onValueChange={setSelectedChef}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select staff member" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Staff Members</SelectItem>
-                {(performanceData?.chef_summary || []).map((chef) => (
-                  <SelectItem key={chef.id} value={chef.id.toString()}>
-                    {chef.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Staff Members</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {selectedChefs.includes('all') ? (
+                <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+                  All Staff Members
+                  <button
+                    className="ml-1 hover:text-destructive"
+                    onClick={() => setSelectedChefs(['all'])}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ) : (
+                selectedChefs.map(chefId => {
+                  const chef = performanceData?.chef_summary.find(c => c.id.toString() === chefId);
+                  return chef ? (
+                    <Badge key={chef.id} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+                      {chef.name}
+                      <button
+                        className="ml-1 hover:text-destructive"
+                        onClick={() => removeChef(chef.id.toString())}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ) : null;
+                })
+              )}
+            </div>
+            <Popover open={isSelectOpen} onOpenChange={setIsSelectOpen}>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-[200px] justify-between text-left font-normal"
+                  role="combobox"
+                  aria-expanded={isSelectOpen}
+                >
+                  {selectedChefs.includes('all') ? (
+                    <span className="text-muted-foreground">Change Selection</span>
+                  ) : (
+                    <span>Select Staff Members</span>
+                  )}
+                  <Users className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <div className="p-2">
+                  <div className="space-y-1">
+                    <div 
+                      className={cn(
+                        "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
+                        tempSelectedChefs.includes('all') ? "bg-blue-50" : "hover:bg-gray-100"
+                      )}
+                      onClick={() => handleCheckboxChange('all', !tempSelectedChefs.includes('all'))}
+                    >
+                      <Checkbox 
+                        id="all"
+                        checked={tempSelectedChefs.includes('all')}
+                        onCheckedChange={(checked) => handleCheckboxChange('all', checked)}
+                        className="border-blue-500 data-[state=checked]:bg-blue-500"
+                      />
+                      <label 
+                        htmlFor="all" 
+                        className="flex-1 text-sm font-medium leading-none cursor-pointer select-none"
+                      >
+                        All Staff Members
+                      </label>
+                    </div>
+                    {(performanceData?.chef_summary || []).map((chef) => (
+                      <div 
+                        key={chef.id} 
+                        className={cn(
+                          "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
+                          tempSelectedChefs.includes(chef.id.toString()) ? "bg-blue-50" : "hover:bg-gray-100"
+                        )}
+                        onClick={() => handleCheckboxChange(chef.id.toString(), !tempSelectedChefs.includes(chef.id.toString()))}
+                      >
+                        <Checkbox 
+                          id={chef.id.toString()}
+                          checked={tempSelectedChefs.includes(chef.id.toString()) || tempSelectedChefs.includes('all')}
+                          onCheckedChange={(checked) => handleCheckboxChange(chef.id.toString(), checked)}
+                          className="border-blue-500 data-[state=checked]:bg-blue-500"
+                        />
+                        <label 
+                          htmlFor={chef.id.toString()} 
+                          className="flex-1 text-sm font-medium leading-none cursor-pointer select-none"
+                        >
+                          {chef.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 p-2 bg-gray-50 border-t">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={cancelSelection}
+                    className="text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={applySelection}
+                    className="bg-blue-500 hover:bg-blue-600 text-xs"
+                  >
+                    Done
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardContent>
       </Card>
@@ -115,7 +315,7 @@ export const StaffPerformanceDashboard = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{performanceData?.chef_summary?.length || 0}</div>
+            <div className="text-2xl font-bold">{totalStaffMembers}</div>
           </CardContent>
         </Card>
 
@@ -125,9 +325,7 @@ export const StaffPerformanceDashboard = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${(performanceData?.chef_summary?.reduce((sum, chef) => sum + chef.total_revenue, 0) || 0).toFixed(2)}
-            </div>
+            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -137,9 +335,7 @@ export const StaffPerformanceDashboard = () => {
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {performanceData?.chef_summary?.reduce((sum, chef) => sum + chef.total_sales, 0) || 0}
-            </div>
+            <div className="text-2xl font-bold">{totalSales}</div>
           </CardContent>
         </Card>
       </div>
@@ -154,7 +350,7 @@ export const StaffPerformanceDashboard = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={performanceData?.chef_summary || []}>
+              <BarChart data={filteredChefSummary}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
@@ -176,7 +372,7 @@ export const StaffPerformanceDashboard = () => {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={performanceData?.chef_summary || []}
+                  data={filteredChefSummary}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -185,7 +381,7 @@ export const StaffPerformanceDashboard = () => {
                   fill="#8884d8"
                   dataKey="total_sales"
                 >
-                  {(performanceData?.chef_summary || []).map((entry, index) => (
+                  {filteredChefSummary.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -196,7 +392,7 @@ export const StaffPerformanceDashboard = () => {
         </Card>
       </div>
 
-      {/* Detailed Performance Table */}
+      {/* Staff Performance Leaderboard */}
       <Card>
         <CardHeader>
           <CardTitle>Staff Performance Leaderboard</CardTitle>
@@ -216,11 +412,11 @@ export const StaffPerformanceDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {(performanceData?.chef_summary || [])
+                {filteredChefSummary
                   .sort((a, b) => b.total_revenue - a.total_revenue)
                   .map((chef, index) => {
                     const avgSaleValue = chef.total_sales > 0 ? chef.total_revenue / chef.total_sales : 0;
-                    const maxRevenue = Math.max(...(performanceData?.chef_summary || []).map(c => c.total_revenue));
+                    const maxRevenue = Math.max(...filteredChefSummary.map(c => c.total_revenue));
                     const performanceScore = maxRevenue > 0 ? (chef.total_revenue / maxRevenue * 100) : 0;
                     
                     return (
@@ -257,39 +453,6 @@ export const StaffPerformanceDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Individual Staff Performance Details */}
-      {selectedChef !== 'all' && performanceData?.chef_performance && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Individual Performance Details</CardTitle>
-            <CardDescription>Detailed breakdown of dishes and performance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {performanceData.chef_performance
-                .filter(chef => chef.chef_name === (performanceData.chef_summary.find(c => c.id.toString() === selectedChef)?.name))
-                .map((chef, index) => (
-                  <div key={index}>
-                    <h4 className="font-medium text-lg mb-4">{chef.chef_name}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {chef.dishes?.map((dish, dishIndex) => (
-                        <div key={dishIndex} className="p-4 border rounded-lg">
-                          <h5 className="font-medium">{dish.item_name}</h5>
-                          <p className="text-sm text-gray-500">{dish.category}</p>
-                          <div className="mt-2">
-                            <p className="text-lg font-bold">${dish.revenue?.toFixed(2)}</p>
-                            <p className="text-sm text-gray-600">{dish.count} sales</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Performance Insights */}
       <Card>
         <CardHeader>
@@ -298,11 +461,11 @@ export const StaffPerformanceDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {performanceData?.chef_summary && performanceData.chef_summary.length > 0 && (
+            {filteredChefSummary && filteredChefSummary.length > 0 && (
               <>
                 {/* Top Performer */}
                 {(() => {
-                  const topPerformer = performanceData.chef_summary.reduce((max, chef) => 
+                  const topPerformer = filteredChefSummary.reduce((max, chef) => 
                     chef.total_revenue > (max?.total_revenue || 0) ? chef : max, null);
                   return topPerformer && (
                     <div className="p-4 bg-green-50 rounded-lg">
@@ -317,7 +480,7 @@ export const StaffPerformanceDashboard = () => {
 
                 {/* Most Active */}
                 {(() => {
-                  const mostActive = performanceData.chef_summary.reduce((max, chef) => 
+                  const mostActive = filteredChefSummary.reduce((max, chef) => 
                     chef.total_sales > (max?.total_sales || 0) ? chef : max, null);
                   return mostActive && (
                     <div className="p-4 bg-blue-50 rounded-lg">
@@ -331,9 +494,9 @@ export const StaffPerformanceDashboard = () => {
 
                 {/* Development Opportunity */}
                 {(() => {
-                  const needsSupport = performanceData.chef_summary.reduce((min, chef) => 
+                  const needsSupport = filteredChefSummary.reduce((min, chef) => 
                     chef.total_revenue < (min?.total_revenue || Infinity) ? chef : min, null);
-                  return needsSupport && performanceData.chef_summary.length > 1 && (
+                  return needsSupport && filteredChefSummary.length > 1 && (
                     <div className="p-4 bg-yellow-50 rounded-lg">
                       <h4 className="font-medium text-yellow-800">Development Opportunity</h4>
                       <p className="text-yellow-700">
@@ -347,6 +510,37 @@ export const StaffPerformanceDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Individual Staff Performance Details */}
+      {!selectedChefs.includes('all') && performanceData?.chef_performance && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Individual Performance Details</CardTitle>
+            <CardDescription>Detailed breakdown of dishes and performance</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {filteredChefPerformance.map((chef, index) => (
+                <div key={index}>
+                  <h4 className="font-medium text-lg mb-4">{chef.chef_name}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {chef.dishes?.map((dish, dishIndex) => (
+                      <div key={dishIndex} className="p-4 border rounded-lg">
+                        <h5 className="font-medium">{dish.item_name}</h5>
+                        <p className="text-sm text-gray-500">{dish.category}</p>
+                        <div className="mt-2">
+                          <p className="text-lg font-bold">${dish.revenue?.toFixed(2)}</p>
+                          <p className="text-sm text-gray-600">{dish.count} sales</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

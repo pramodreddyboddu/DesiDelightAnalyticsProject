@@ -1,13 +1,13 @@
 import os
 import sys
-from flask import Flask, jsonify, request, send_from_directory, session, g
+from flask import Flask, jsonify, request, session, g
 from flask_cors import CORS
 from flask_session import Session
 import logging
 from datetime import timedelta, datetime
-import shutil
-import pickle
 import uuid
+from sqlalchemy import text
+from tempfile import gettempdir
 
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -36,10 +36,14 @@ from src.utils.error_handlers import setup_error_handlers, log_request_error
 def create_app(config_name='default'):
     """Create and configure the Flask application with enhanced security."""
     
-    app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
+    app = Flask(__name__)
     
     # Load configuration
     app.config.from_object(config[config_name])
+    
+    # Add Flask configuration to prevent redirects
+    app.config['STRICT_SLASHES'] = False  # Don't redirect for trailing slashes
+    app.config['PREFERRED_URL_SCHEME'] = 'http'  # For local development
     
     # Setup enhanced logging
     logger = setup_logger(app)
@@ -49,6 +53,25 @@ def create_app(config_name='default'):
     
     # Initialize extensions
     db.init_app(app)
+    
+    # Initialize Flask-Session
+    Session(app)
+    
+    # Configure session explicitly
+    app.config['SESSION_PERMANENT'] = True
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
+    app.config['SESSION_COOKIE_SECURE'] = False  # For local development
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = None  # Allow cross-site requests
+    app.config['SESSION_COOKIE_PATH'] = '/'
+    app.config['SESSION_COOKIE_DOMAIN'] = None
+    app.config['SESSION_COOKIE_NAME'] = 'desi_delight_session'
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+    app.config['SESSION_USE_SIGNER'] = True
+    app.config['SESSION_KEY_PREFIX'] = 'desi_delight_'
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['SESSION_FILE_DIR'] = os.path.join(gettempdir(), 'desi_delight_sessions')
+    os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
     
     # Create database tables and admin user
     with app.app_context():
@@ -72,26 +95,21 @@ def create_app(config_name='default'):
             db.session.commit()
             logger.info('Admin user password updated')
     
-    # Configure session with enhanced security
-    session_dir = os.path.join(app.instance_path, 'flask_session')
-    os.makedirs(session_dir, exist_ok=True)
-    
-    app.config['SESSION_FILE_DIR'] = session_dir
-    app.config['SESSION_FILE_THRESHOLD'] = app.config.get('SESSION_FILE_THRESHOLD', 500)
-    app.config['SESSION_PERMANENT'] = app.config.get('SESSION_PERMANENT', True)
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=app.config.get('PERMANENT_SESSION_LIFETIME', 86400))
-    app.config['SESSION_COOKIE_SECURE'] = app.config.get('SESSION_COOKIE_SECURE', False)
-    app.config['SESSION_COOKIE_HTTPONLY'] = app.config.get('SESSION_COOKIE_HTTPONLY', True)
-    app.config['SESSION_COOKIE_SAMESITE'] = app.config.get('SESSION_COOKIE_SAMESITE', 'Lax')
-    app.config['SESSION_COOKIE_PATH'] = app.config.get('SESSION_COOKIE_PATH', '/')
-    app.config['SESSION_COOKIE_DOMAIN'] = app.config.get('SESSION_COOKIE_DOMAIN', None)
-    app.config['SESSION_COOKIE_NAME'] = app.config.get('SESSION_COOKIE_NAME', 'session')
-    app.config['SESSION_REFRESH_EACH_REQUEST'] = app.config.get('SESSION_REFRESH_EACH_REQUEST', False)
-    app.config['SESSION_USE_SIGNER'] = app.config.get('SESSION_USE_SIGNER', True)
-    app.config['SESSION_KEY_PREFIX'] = app.config.get('SESSION_KEY_PREFIX', 'desi_delight_')
-    
-    # Initialize Flask-Session
-    Session(app)
+    # Enhanced CORS configuration
+    CORS(app, 
+         resources={
+             r"/api/*": {
+                 "origins": app.config['CORS_ORIGINS'],
+                 "methods": app.config['CORS_METHODS'],
+                 "allow_headers": app.config['CORS_ALLOW_HEADERS'],
+                 "expose_headers": app.config['CORS_EXPOSE_HEADERS'],
+                 "supports_credentials": app.config['CORS_SUPPORTS_CREDENTIALS'],
+                 "max_age": app.config['CORS_MAX_AGE']
+             }
+         },
+         origins=app.config['CORS_ORIGINS'],
+         supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS']
+    )
     
     # Enhanced request logging middleware
     @app.before_request
@@ -100,6 +118,11 @@ def create_app(config_name='default'):
             # Generate unique request ID for tracking
             g.request_id = str(uuid.uuid4())
             
+            # Log all requests for debugging
+            logger.info(f"Request: {request.method} {request.path} - Origin: {request.headers.get('Origin', 'None')}")
+            logger.info(f"Headers: {dict(request.headers)}")
+            logger.info(f"Session: {dict(session)}")
+            
             # Log request information
             if request.method in ['POST', 'PUT', 'DELETE']:
                 log_request_info()
@@ -107,38 +130,8 @@ def create_app(config_name='default'):
         except Exception as e:
             logger.error(f"Error in before_request: {str(e)}")
     
-    # Enhanced CORS configuration
-    CORS(app, resources={r"/api/*": {
-        "origins": app.config.get('ALLOWED_ORIGINS', ["http://localhost:5173"]),
-        "supports_credentials": True,
-        "allow_headers": ["Content-Type", "Authorization"],
-        "expose_headers": ["Content-Type", "Set-Cookie"],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "max_age": 3600
-    }})
-    
-    # Add security headers
-    @app.after_request
-    def after_request(response):
-        try:
-            # Add CORS headers
-            if request.method == 'OPTIONS':
-                response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-                response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-            
-            # Add security headers
-            response.headers['X-Content-Type-Options'] = 'nosniff'
-            response.headers['X-Frame-Options'] = 'DENY'
-            response.headers['X-XSS-Protection'] = '1; mode=block'
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-            
-            return response
-            
-        except Exception as e:
-            logger.error(f"Error in after_request: {str(e)}")
-            return response
-    
     # Register blueprints
+    logger.info("Registering blueprints...")
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(user_bp, url_prefix='/api/users')
     app.register_blueprint(upload_bp, url_prefix='/api/upload')
@@ -146,6 +139,7 @@ def create_app(config_name='default'):
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
+    logger.info("Blueprints registered successfully")
     
     # Health check endpoint
     @app.route('/')
@@ -160,8 +154,8 @@ def create_app(config_name='default'):
     @app.route('/health')
     def health_check():
         try:
-            # Check database connection
-            db.session.execute('SELECT 1')
+            # Check database connection using SQLAlchemy 2.0 compatible syntax
+            db.session.execute(text('SELECT 1'))
             return jsonify({
                 'status': 'healthy',
                 'database': 'connected',
@@ -174,6 +168,23 @@ def create_app(config_name='default'):
                 'database': 'disconnected',
                 'error': str(e)
             }), 500
+    
+    # Test endpoint for CORS debugging
+    @app.route('/api/test-cors', methods=['GET', 'OPTIONS'])
+    def test_cors():
+        if request.method == 'OPTIONS':
+            response = app.make_response('')
+            response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Cookie'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            return response, 200
+        
+        return jsonify({
+            'message': 'CORS test successful',
+            'session': dict(session),
+            'cookies': dict(request.cookies)
+        }), 200
     
     return app
 

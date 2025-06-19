@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from datetime import timedelta
+from tempfile import gettempdir
 
 # Load environment variables
 load_dotenv()
@@ -14,7 +15,8 @@ class Config:
     # Database configuration
     DATABASE_DIR = os.path.join(BASE_DIR, 'database')
     os.makedirs(DATABASE_DIR, exist_ok=True)
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', f'sqlite:///{os.path.join(DATABASE_DIR, "app.db")}')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'sqlite:///' + os.path.join(DATABASE_DIR, 'app.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Admin Configuration
@@ -22,19 +24,24 @@ class Config:
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
     
     # Security Configuration
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
-    SESSION_COOKIE_HTTPONLY = os.getenv('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
-    SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    SESSION_COOKIE_SECURE = False  # For local development
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = None  # Allow cross-site requests for development
     SESSION_COOKIE_PATH = '/'
-    SESSION_COOKIE_DOMAIN = None
-    SESSION_COOKIE_NAME = 'session'
-    SESSION_REFRESH_EACH_REQUEST = False
+    SESSION_COOKIE_DOMAIN = None  # Let Flask set domain automatically
+    SESSION_COOKIE_NAME = 'desi_delight_session'  # Unique session name
+    SESSION_REFRESH_EACH_REQUEST = True  # Keep session alive
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'desi_delight_'
     
     # CORS Configuration
-    ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000').split(',')
+    CORS_ORIGINS = ["http://localhost:5173"]  # Strict CORS origins
+    CORS_SUPPORTS_CREDENTIALS = True  # Allow credentials
+    CORS_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS = ["Content-Type", "Authorization", "Cookie"]  # Added Cookie header
+    CORS_EXPOSE_HEADERS = ["Content-Type", "Authorization", "Set-Cookie"]  # Added Set-Cookie header
+    CORS_MAX_AGE = 600  # Cache preflight requests for 10 minutes
     
     # Logging Configuration
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
@@ -50,15 +57,11 @@ class Config:
     ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
     
     # Session Configuration
-    SESSION_TYPE = 'filesystem'
-    SESSION_FILE_THRESHOLD = 500
+    SESSION_TYPE = 'filesystem'  # Use filesystem for development
+    SESSION_FILE_DIR = os.path.join(gettempdir(), 'desi_delight_sessions')  # Dedicated session directory
+    os.makedirs(SESSION_FILE_DIR, exist_ok=True)  # Ensure directory exists
     SESSION_PERMANENT = True
-    PERMANENT_SESSION_LIFETIME = 86400  # 24 hours
-    
-    # Flask settings
-    SESSION_COOKIE_NAME = 'session'
-    SESSION_COOKIE_DOMAIN = 'localhost'
-    SESSION_COOKIE_PATH = '/'
+    PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     
     # Logging configuration
     LOG_LEVEL = 'INFO'

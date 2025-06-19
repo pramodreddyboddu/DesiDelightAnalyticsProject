@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { useToast } from '@/components/ui/toast.jsx';
 import { useApiData } from '@/hooks/use-api.js';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, Image as ImageIcon } from 'lucide-react';
 
 export const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,7 +15,7 @@ export const InventoryManagement = () => {
   const { error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: inventoryData, loading, error } = useApiData('/inventory', []);
+  const { data: inventoryData, loading, error, refresh } = useApiData('/inventory', []);
 
   // Extract categories and handle errors
   useEffect(() => {
@@ -25,12 +25,17 @@ export const InventoryManagement = () => {
     }
   }, [inventoryData]);
 
-  // Show error toast if API call fails
+  // Show error toast if API call fails, but don't block rendering
   useEffect(() => {
     if (error) {
       showError('Failed to load inventory data', error);
+      // Retry after 5 seconds on error
+      const timer = setTimeout(() => {
+        refresh();
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-  }, [error, showError]);
+  }, [error, showError, refresh]);
 
   const filteredInventory = (inventoryData?.items || []).filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,6 +49,7 @@ export const InventoryManagement = () => {
     return <LoadingSpinner size="lg" text="Loading inventory data..." />;
   }
 
+  // Even if there's an error, try to show data if we have it
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
@@ -98,24 +104,40 @@ export const InventoryManagement = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Image</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>Product Code</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredInventory.map((item) => (
                 <TableRow key={item.id}>
+                  <TableCell>
+                    {item.image_url ? (
+                      <img 
+                        src={item.image_url} 
+                        alt={item.name}
+                        className="w-12 h-12 object-cover rounded"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/placeholder-food.png';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>{item.sku || '-'}</TableCell>
                   <TableCell>{item.product_code || '-'}</TableCell>
                   <TableCell>{item.category || 'Uncategorized'}</TableCell>
                   <TableCell className="text-right">${item.price?.toFixed(2) || '0.00'}</TableCell>
-                  <TableCell className="text-right">${item.cost?.toFixed(2) || '0.00'}</TableCell>
                   <TableCell className="text-right">{item.quantity || 0}</TableCell>
                 </TableRow>
               ))}

@@ -217,6 +217,7 @@ def export_chef_performance_report():
         # Get query parameters
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        chef_ids = request.args.get('chef_ids')
         format_type = request.args.get('format', 'csv')
         
         # Build query
@@ -239,6 +240,13 @@ def export_chef_performance_report():
         if end_date:
             end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
             query = query.filter(Sale.line_item_date <= end_date)
+            
+        if chef_ids and chef_ids != 'all':
+            try:
+                chef_id_list = [int(id_str) for id_str in chef_ids.split(',')]
+                query = query.filter(Chef.id.in_(chef_id_list))
+            except ValueError:
+                return jsonify({'error': 'Invalid chef_ids format'}), 400
         
         # Group and order
         results = query.group_by(Chef.id, Chef.name, Item.id, Item.name, Item.category)\

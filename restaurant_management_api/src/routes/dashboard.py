@@ -33,6 +33,11 @@ def get_sales_summary():
         end_date = parse_date(request.args.get('end_date'))
         category = request.args.get('category')
         
+        # Debug logging
+        logging.info(f"Sales summary request - start_date: {request.args.get('start_date')}, parsed: {start_date}")
+        logging.info(f"Sales summary request - end_date: {request.args.get('end_date')}, parsed: {end_date}")
+        logging.info(f"Sales summary request - category: {category}")
+        
         # Build base query
         query = db.session.query(Sale).join(Item, Sale.item_id == Item.id)
         
@@ -142,9 +147,14 @@ def get_chef_performance():
         # Get query parameters
         start_date = parse_date(request.args.get('start_date'))
         end_date = parse_date(request.args.get('end_date'))
-        chef_id = request.args.get('chef_id')
+        chef_ids = request.args.get('chef_ids')
         
-        # Build base query
+        # Debug logging
+        logging.info(f"Chef performance request - start_date: {request.args.get('start_date')}, parsed: {start_date}")
+        logging.info(f"Chef performance request - end_date: {request.args.get('end_date')}, parsed: {end_date}")
+        logging.info(f"Chef performance request - chef_ids: {chef_ids}")
+        
+        # Build base query for chef performance
         query = db.session.query(
             Chef.name.label('chef_name'),
             Item.name.label('item_name'),
@@ -162,18 +172,18 @@ def get_chef_performance():
         if end_date:
             query = query.filter(Sale.line_item_date <= end_date)
         
-        if chef_id:
+        if chef_ids and chef_ids != 'all':
             try:
-                chef_id = int(chef_id)
-                query = query.filter(Chef.id == chef_id)
+                chef_id_list = [int(id_str) for id_str in chef_ids.split(',')]
+                query = query.filter(Chef.id.in_(chef_id_list))
             except ValueError:
-                logging.error(f"Invalid chef_id format: {chef_id}")
-                return jsonify({'error': 'Invalid chef_id format'}), 400
+                logging.error(f"Invalid chef_ids format: {chef_ids}")
+                return jsonify({'error': 'Invalid chef_ids format'}), 400
         
         # Group by chef and item
         chef_performance = query.group_by(Chef.id, Chef.name, Item.id, Item.name, Item.category).all()
         
-        # Get chef summary
+        # Get chef summary with the same filters
         chef_summary = db.session.query(
             Chef.id,
             Chef.name,
@@ -183,15 +193,21 @@ def get_chef_performance():
          .join(Item, ChefDishMapping.item_id == Item.id)\
          .join(Sale, Item.id == Sale.item_id)
         
+        # Apply the same filters to summary
         if start_date:
             chef_summary = chef_summary.filter(Sale.line_item_date >= start_date)
         if end_date:
             chef_summary = chef_summary.filter(Sale.line_item_date <= end_date)
-        if chef_id:
-            chef_summary = chef_summary.filter(Chef.id == chef_id)
+        if chef_ids and chef_ids != 'all':
+            chef_summary = chef_summary.filter(Chef.id.in_(chef_id_list))
         
         chef_summary = chef_summary.group_by(Chef.id, Chef.name)\
                                   .order_by(func.sum(Sale.total_revenue).desc()).all()
+        
+        # Debug logging for query results
+        logging.info(f"Chef summary results count: {len(chef_summary)}")
+        for chef in chef_summary:
+            logging.info(f"Chef: {chef.name}, Revenue: {chef.total_revenue}, Sales: {chef.total_sales}")
         
         # Format response
         performance_data = {}
