@@ -1,12 +1,13 @@
 import os
 import sys
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, jsonify, request, send_from_directory, session, g
 from flask_cors import CORS
 from flask_session import Session
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime
 import shutil
 import pickle
+import uuid
 
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -28,72 +29,87 @@ from src.models.expense import Expense
 from src.models.category import Category
 from src.models.uncategorized_item import UncategorizedItem
 from src.models.file_upload import FileUpload
-from src.config import Config
+from src.config import config
+from src.utils.logger import setup_logger, log_request_info
+from src.utils.error_handlers import setup_error_handlers, log_request_error
 
-def create_app():
-    app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
-    app.config.from_object(Config)
+def create_app(config_name='default'):
+    """Create and configure the Flask application with enhanced security."""
     
-    # Initialize extensions first
+    app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
+    
+    # Load configuration
+    app.config.from_object(config[config_name])
+    
+    # Setup enhanced logging
+    logger = setup_logger(app)
+    
+    # Setup error handlers
+    setup_error_handlers(app)
+    
+    # Initialize extensions
     db.init_app(app)
     
-    # Create database tables
+    # Create database tables and admin user
     with app.app_context():
         db.create_all()
+        
         # Create admin user if it doesn't exist
-        admin = User.query.filter_by(username='admin').first()
+        admin = User.query.filter_by(username=app.config['ADMIN_USERNAME']).first()
         if not admin:
-            admin = User(username='admin', role='admin', is_admin=True)
-            admin.set_password('admin123')
+            admin = User(
+                username=app.config['ADMIN_USERNAME'], 
+                role='admin', 
+                is_admin=True
+            )
+            admin.set_password(app.config['ADMIN_PASSWORD'])
             db.session.add(admin)
             db.session.commit()
-            app.logger.info('Admin user created successfully')
+            logger.info('Admin user created successfully')
         else:
             # Update admin password if it exists
-            admin.set_password('admin123')
+            admin.set_password(app.config['ADMIN_PASSWORD'])
             db.session.commit()
-            app.logger.info('Admin user password updated')
+            logger.info('Admin user password updated')
     
-    # Configure session
-    app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_FILE_DIR'] = os.path.join(app.instance_path, 'flask_session')
-    app.config['SESSION_FILE_THRESHOLD'] = 500
-    app.config['SESSION_PERMANENT'] = True
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
-    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['SESSION_COOKIE_PATH'] = '/'
-    app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow cookies to be sent to any subdomain
-    app.config['SESSION_COOKIE_NAME'] = 'session'
-    app.config['SESSION_REFRESH_EACH_REQUEST'] = False  # Don't refresh session on each request
-    app.config['SESSION_USE_SIGNER'] = True  # Enable session signing
-    app.config['SESSION_KEY_PREFIX'] = 'desi_delight_'  # Add a prefix to session keys
-    
-    # Ensure the session directory exists
-    session_dir = app.config['SESSION_FILE_DIR']
+    # Configure session with enhanced security
+    session_dir = os.path.join(app.instance_path, 'flask_session')
     os.makedirs(session_dir, exist_ok=True)
+    
+    app.config['SESSION_FILE_DIR'] = session_dir
+    app.config['SESSION_FILE_THRESHOLD'] = app.config.get('SESSION_FILE_THRESHOLD', 500)
+    app.config['SESSION_PERMANENT'] = app.config.get('SESSION_PERMANENT', True)
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=app.config.get('PERMANENT_SESSION_LIFETIME', 86400))
+    app.config['SESSION_COOKIE_SECURE'] = app.config.get('SESSION_COOKIE_SECURE', False)
+    app.config['SESSION_COOKIE_HTTPONLY'] = app.config.get('SESSION_COOKIE_HTTPONLY', True)
+    app.config['SESSION_COOKIE_SAMESITE'] = app.config.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    app.config['SESSION_COOKIE_PATH'] = app.config.get('SESSION_COOKIE_PATH', '/')
+    app.config['SESSION_COOKIE_DOMAIN'] = app.config.get('SESSION_COOKIE_DOMAIN', None)
+    app.config['SESSION_COOKIE_NAME'] = app.config.get('SESSION_COOKIE_NAME', 'session')
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = app.config.get('SESSION_REFRESH_EACH_REQUEST', False)
+    app.config['SESSION_USE_SIGNER'] = app.config.get('SESSION_USE_SIGNER', True)
+    app.config['SESSION_KEY_PREFIX'] = app.config.get('SESSION_KEY_PREFIX', 'desi_delight_')
     
     # Initialize Flask-Session
     Session(app)
     
-    # Configure logging
-    logging.basicConfig(level=logging.WARNING)
-    app.logger.setLevel(logging.WARNING)
-    
-    # Add request logging middleware
+    # Enhanced request logging middleware
     @app.before_request
-    def log_request_info():
+    def before_request():
         try:
-            # Only log errors and warnings
+            # Generate unique request ID for tracking
+            g.request_id = str(uuid.uuid4())
+            
+            # Log request information
             if request.method in ['POST', 'PUT', 'DELETE']:
-                app.logger.warning(f'{request.method} {request.path}')
+                log_request_info()
+                
         except Exception as e:
-            app.logger.error(f"Error in request logging: {str(e)}")
+            logger.error(f"Error in before_request: {str(e)}")
     
-    # Configure CORS with credentials
+    # Enhanced CORS configuration
     CORS(app, resources={r"/api/*": {
-        "origins": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"],
+        "origins": app.config.get('ALLOWED_ORIGINS', ["http://localhost:5173"]),
         "supports_credentials": True,
         "allow_headers": ["Content-Type", "Authorization"],
         "expose_headers": ["Content-Type", "Set-Cookie"],
@@ -101,13 +117,26 @@ def create_app():
         "max_age": 3600
     }})
     
-    # Add CORS headers to all responses
+    # Add security headers
     @app.after_request
     def after_request(response):
-        if request.method == 'OPTIONS':
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        return response
+        try:
+            # Add CORS headers
+            if request.method == 'OPTIONS':
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+                response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+            
+            # Add security headers
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'DENY'
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in after_request: {str(e)}")
+            return response
     
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -118,10 +147,33 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
     
-    # Add a root route for health check or landing page
+    # Health check endpoint
     @app.route('/')
     def index():
-        return "Desi Delight Analytics API is running!", 200
+        return jsonify({
+            'status': 'healthy',
+            'message': 'Desi Delight Analytics API is running!',
+            'version': '1.0.0'
+        }), 200
+    
+    # Health check endpoint for monitoring
+    @app.route('/health')
+    def health_check():
+        try:
+            # Check database connection
+            db.session.execute('SELECT 1')
+            return jsonify({
+                'status': 'healthy',
+                'database': 'connected',
+                'timestamp': str(datetime.now())
+            }), 200
+        except Exception as e:
+            logger.error(f"Health check failed: {str(e)}")
+            return jsonify({
+                'status': 'unhealthy',
+                'database': 'disconnected',
+                'error': str(e)
+            }), 500
     
     return app
 
