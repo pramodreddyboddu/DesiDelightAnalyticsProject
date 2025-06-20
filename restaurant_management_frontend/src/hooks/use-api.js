@@ -109,7 +109,7 @@ export const useApiData = (endpoint, dependencies = []) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { get } = useApi();
-  const { success, error: showError } = useToast();
+  const { error: showError } = useToast();
 
   const fetchData = useCallback(async () => {
     try {
