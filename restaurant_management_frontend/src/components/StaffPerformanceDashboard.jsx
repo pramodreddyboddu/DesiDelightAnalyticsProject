@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge.jsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.jsx';
 import { Checkbox } from '@/components/ui/checkbox.jsx';
 import { cn } from '@/lib/utils';
+import { Search } from 'lucide-react';
+import { Input } from '@/components/ui/input.jsx';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
@@ -44,45 +46,35 @@ export const StaffPerformanceDashboard = () => {
   }, [isSelectOpen]);
 
   // Handle temporary chef selection
-  const handleTempChefSelection = (chefId) => {
-    setTempSelectedChefs(prev => {
+  const handleToggleChefSelection = (chefId) => {
+    setTempSelectedChefs(currentSelection => {
+      const isAllSelected = currentSelection.includes('all');
+
+      // Toggle 'all'
       if (chefId === 'all') {
+        return isAllSelected ? [] : ['all'];
+      }
+
+      // If 'all' is selected, start a new selection with the chosen chef
+      if (isAllSelected) {
+        return [chefId];
+      }
+
+      // Add or remove an individual chef from the selection
+      let newSelection;
+      if (currentSelection.includes(chefId)) {
+        newSelection = currentSelection.filter(id => id !== chefId);
+      } else {
+        newSelection = [...currentSelection, chefId];
+      }
+
+      // If the selection becomes empty, default back to 'all'
+      if (newSelection.length === 0) {
         return ['all'];
       }
-      const newSelection = prev.filter(id => id !== 'all');
-      if (newSelection.includes(chefId)) {
-        const filtered = newSelection.filter(id => id !== chefId);
-        return filtered.length === 0 ? ['all'] : filtered;
-      }
-      return [...newSelection, chefId];
-    });
-  };
 
-  // Handle checkbox change
-  const handleCheckboxChange = (chefId, checked) => {
-    if (checked) {
-      if (chefId === 'all') {
-        setTempSelectedChefs(['all']);
-      } else {
-        setTempSelectedChefs(prev => {
-          // If 'all' was selected, remove it and add all individual chefs except the current one
-          if (prev.includes('all')) {
-            const allChefIds = performanceData?.chef_summary?.map(chef => chef.id.toString()) || [];
-            return allChefIds.filter(id => id !== chefId);
-          }
-          // Add the new chef to selection
-          return [...prev, chefId];
-        });
-      }
-    } else {
-      if (chefId === 'all') {
-        // When unchecking 'all', select no chefs
-        setTempSelectedChefs([]);
-      } else {
-        // Remove the chef from selection
-        setTempSelectedChefs(prev => prev.filter(id => id !== chefId));
-      }
-    }
+      return newSelection;
+    });
   };
 
   // Apply the selection when Done is clicked
@@ -244,42 +236,28 @@ export const StaffPerformanceDashboard = () => {
                         "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
                         tempSelectedChefs.includes('all') ? "bg-blue-50" : "hover:bg-gray-100"
                       )}
-                      onClick={() => handleCheckboxChange('all', !tempSelectedChefs.includes('all'))}
+                      onClick={() => handleToggleChefSelection('all')}
                     >
                       <Checkbox 
                         id="all"
                         checked={tempSelectedChefs.includes('all')}
-                        onCheckedChange={(checked) => handleCheckboxChange('all', checked)}
-                        className="border-blue-500 data-[state=checked]:bg-blue-500"
                       />
-                      <label 
-                        htmlFor="all" 
-                        className="flex-1 text-sm font-medium leading-none cursor-pointer select-none"
-                      >
-                        All Staff Members
-                      </label>
+                      <label htmlFor="all" className="font-medium w-full cursor-pointer">All Staff Members</label>
                     </div>
-                    {(performanceData?.chef_summary || []).map((chef) => (
+                    {performanceData?.chef_summary?.map(chef => (
                       <div 
-                        key={chef.id} 
+                        key={chef.id}
                         className={cn(
                           "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
                           tempSelectedChefs.includes(chef.id.toString()) ? "bg-blue-50" : "hover:bg-gray-100"
                         )}
-                        onClick={() => handleCheckboxChange(chef.id.toString(), !tempSelectedChefs.includes(chef.id.toString()))}
+                        onClick={() => handleToggleChefSelection(chef.id.toString())}
                       >
                         <Checkbox 
                           id={chef.id.toString()}
-                          checked={tempSelectedChefs.includes(chef.id.toString()) || tempSelectedChefs.includes('all')}
-                          onCheckedChange={(checked) => handleCheckboxChange(chef.id.toString(), checked)}
-                          className="border-blue-500 data-[state=checked]:bg-blue-500"
+                          checked={tempSelectedChefs.includes(chef.id.toString())}
                         />
-                        <label 
-                          htmlFor={chef.id.toString()} 
-                          className="flex-1 text-sm font-medium leading-none cursor-pointer select-none"
-                        >
-                          {chef.name}
-                        </label>
+                        <label htmlFor={chef.id.toString()} className="w-full cursor-pointer">{chef.name}</label>
                       </div>
                     ))}
                   </div>

@@ -28,10 +28,9 @@ export const SalesAnalyticsDashboard = () => {
   const { data: salesData, loading, error, refresh } = useApiData('/dashboard/sales-summary', {
     start_date: dateRange.from?.toISOString(),
     end_date: dateRange.to?.toISOString(),
-    category: selectedCategories.includes('all') ? undefined : selectedCategories.join(',')
   });
   
-  const { data: inventoryData } = useApiData('/inventory', []);
+  const { data: inventoryData } = useApiData('/inventory/', []);
 
   // Extract categories from inventory data
   useEffect(() => {
@@ -48,55 +47,47 @@ export const SalesAnalyticsDashboard = () => {
     }
   }, [isSelectOpen]);
 
-  // Handle checkbox change
-  const handleCheckboxChange = (categoryId, checked) => {
-    if (checked) {
+  // Handle category selection
+  const handleToggleCategorySelection = (categoryId) => {
+    setTempSelectedCategories(currentSelection => {
+      const isAllSelected = currentSelection.includes('all');
+
       if (categoryId === 'all') {
-        setTempSelectedCategories(['all']);
-      } else {
-        setTempSelectedCategories(prev => {
-          // If 'all' was selected, remove it and add the new category
-          if (prev.includes('all')) {
-            return [categoryId];
-          }
-          // Add the new category to selection if not already present
-          return prev.includes(categoryId) ? prev : [...prev, categoryId];
-        });
+        return isAllSelected ? [] : ['all'];
       }
-    } else {
-      if (categoryId === 'all') {
-        // When unchecking 'all', select no categories
-        setTempSelectedCategories([]);
+
+      let newSelection = isAllSelected ? [] : [...currentSelection];
+
+      if (newSelection.includes(categoryId)) {
+        newSelection = newSelection.filter(id => id !== categoryId);
       } else {
-        // Remove the category from selection
-        setTempSelectedCategories(prev => {
-          const newSelection = prev.filter(id => id !== categoryId);
-          return newSelection.length === 0 ? ['all'] : newSelection;
-        });
+        newSelection.push(categoryId);
       }
-    }
+      
+      if (newSelection.length === 0) {
+        return ['all'];
+      }
+      
+      return newSelection;
+    });
   };
 
   // Apply the selection when Done is clicked
   const applySelection = () => {
-    // Ensure uniqueness in the final selection
-    const uniqueCategories = [...new Set(tempSelectedCategories)];
-    setSelectedCategories(uniqueCategories);
+    setSelectedCategories(tempSelectedCategories);
     setIsSelectOpen(false);
   };
 
   // Cancel selection
   const cancelSelection = () => {
-    setTempSelectedCategories([...new Set(selectedCategories)]);
+    setTempSelectedCategories(selectedCategories);
     setIsSelectOpen(false);
   };
 
   // Remove a category from selection
   const removeCategory = (categoryId) => {
     const newSelection = selectedCategories.filter(id => id !== categoryId);
-    const uniqueSelection = [...new Set(newSelection.length === 0 ? ['all'] : newSelection)];
-    setSelectedCategories(uniqueSelection);
-    setTempSelectedCategories(uniqueSelection);
+    setSelectedCategories(newSelection.length === 0 ? ['all'] : newSelection);
   };
 
   // Filter the sales data based on selected categories
@@ -253,95 +244,55 @@ export const SalesAnalyticsDashboard = () => {
                       "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
                       tempSelectedCategories.includes('all') ? "bg-blue-50" : "hover:bg-gray-100"
                     )}
-                    onClick={() => handleCheckboxChange('all', !tempSelectedCategories.includes('all'))}
+                    onClick={() => handleToggleCategorySelection('all')}
                   >
                     <Checkbox 
-                      id="all"
+                      id="all-categories"
                       checked={tempSelectedCategories.includes('all')}
-                      onCheckedChange={(checked) => handleCheckboxChange('all', checked)}
-                      className="border-blue-500 data-[state=checked]:bg-blue-500"
                     />
-                    <label 
-                      htmlFor="all" 
-                      className="flex-1 text-sm font-medium leading-none cursor-pointer select-none"
-                    >
-                      All Categories
-                    </label>
-                  </div>
-                  {/* Search input */}
-                  <div className="mt-2 px-2">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search categories..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-8 text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Scrollable container for categories */}
-                <div 
-                  className="overflow-y-auto max-h-[200px]"
-                  style={{
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#E5E7EB transparent',
-                  }}
-                >
-                  <div className="p-2">
-                    <div className="space-y-1">
-                      {filteredCategories.length === 0 ? (
-                        <div className="text-sm text-muted-foreground text-center py-4">
-                          No categories found
-                        </div>
-                      ) : (
-                        filteredCategories.map((category) => (
-                          <div 
-                            key={category} 
-                            className={cn(
-                              "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
-                              tempSelectedCategories.includes(category) ? "bg-blue-50" : "hover:bg-gray-100"
-                            )}
-                            onClick={() => handleCheckboxChange(category, !tempSelectedCategories.includes(category))}
-                          >
-                            <Checkbox 
-                              id={category}
-                              checked={tempSelectedCategories.includes(category) || tempSelectedCategories.includes('all')}
-                              onCheckedChange={(checked) => handleCheckboxChange(category, checked)}
-                              className="border-blue-500 data-[state=checked]:bg-blue-500"
-                            />
-                            <label 
-                              htmlFor={category} 
-                              className="flex-1 text-sm font-medium leading-none cursor-pointer select-none"
-                            >
-                              {category}
-                            </label>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                    <label htmlFor="all-categories" className="w-full cursor-pointer font-medium">All Categories</label>
                   </div>
                 </div>
 
-                {/* Fixed footer with buttons */}
-                <div className="flex items-center justify-end gap-2 p-2 bg-gray-50 border-t">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={cancelSelection}
-                    className="text-xs"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    onClick={applySelection}
-                    className="bg-blue-500 hover:bg-blue-600 text-xs"
-                  >
-                    Done
-                  </Button>
+                {/* Search input */}
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search categories..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-8 w-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Scrollable list of categories */}
+                <div className="max-h-[200px] overflow-y-auto p-2">
+                  <div className="space-y-1">
+                    {filteredCategories.map(category => (
+                      <div 
+                        key={category}
+                        className={cn(
+                          "flex items-center space-x-2 p-2 rounded cursor-pointer transition-colors",
+                          tempSelectedCategories.includes(category) ? "bg-blue-50" : "hover:bg-gray-100"
+                        )}
+                        onClick={() => handleToggleCategorySelection(category)}
+                      >
+                        <Checkbox 
+                          id={category}
+                          checked={tempSelectedCategories.includes(category)}
+                        />
+                        <label htmlFor={category} className="w-full cursor-pointer">{category}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex justify-end p-2 border-t">
+                  <Button variant="ghost" size="sm" onClick={cancelSelection}>Cancel</Button>
+                  <Button size="sm" onClick={applySelection}>Apply</Button>
                 </div>
               </PopoverContent>
             </Popover>
