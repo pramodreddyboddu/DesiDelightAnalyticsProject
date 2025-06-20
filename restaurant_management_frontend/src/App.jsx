@@ -19,6 +19,7 @@ import { AdminPanel } from './components/AdminPanel.jsx';
 import { ProfitabilityDashboard } from './components/ProfitabilityDashboard.jsx';
 import { StaffPerformanceDashboard } from './components/StaffPerformanceDashboard.jsx';
 import { InventoryManagement } from './components/InventoryManagement.jsx';
+import { AIDashboard } from './components/AIDashboard.jsx';
 
 import { 
   DollarSign, 
@@ -33,7 +34,8 @@ import {
   AlertCircle,
   LogOut,
   Menu,
-  X
+  X,
+  Brain
 } from 'lucide-react';
 import './App.css';
 
@@ -211,6 +213,7 @@ const Navigation = ({ activeTab, setActiveTab }) => {
     { id: 'profitability', label: 'Profitability', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: FileText },
     { id: 'reports', label: 'Reports & Export', icon: FileText },
+    { id: 'ai', label: 'AI Insights', icon: Brain },
   ];
 
   if (user?.role === 'admin') {
@@ -505,14 +508,12 @@ const DashboardOverview = ({ setActiveTab }) => {
   );
 };
 
-// Placeholder components for other tabs
+// Tab Components
 const SalesTab = () => <SalesAnalyticsDashboard />;
-
 const ChefPerformanceTab = () => <StaffPerformanceDashboard />;
-
 const ProfitabilityTab = () => <ProfitabilityDashboard />;
-
 const InventoryTab = () => <InventoryManagement />;
+const AITab = () => <AIDashboard />;
 
 // Reports Tab Component
 const ReportsTab = () => {
@@ -657,6 +658,8 @@ const MainApp = () => {
         return <InventoryTab />;
       case 'reports':
         return <ReportsTab />;
+      case 'ai':
+        return <AITab />;
       case 'admin':
         return <AdminTab />;
       default:

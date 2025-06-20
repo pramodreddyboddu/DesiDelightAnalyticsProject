@@ -19,6 +19,7 @@ from src.routes.dashboard import dashboard_bp
 from src.routes.reports import reports_bp
 from src.routes.admin import admin_bp
 from src.routes.inventory import inventory_bp
+from src.routes.ai import ai_bp
 from src.models import db
 from src.models.user import User
 from src.models.item import Item
@@ -139,6 +140,7 @@ def create_app(config_name='default'):
     app.register_blueprint(reports_bp, url_prefix='/api/reports')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
+    app.register_blueprint(ai_bp, url_prefix='/api/ai')
     logger.info("Blueprints registered successfully")
     
     # Health check endpoint
