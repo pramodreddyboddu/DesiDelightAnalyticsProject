@@ -50,6 +50,7 @@ build/
 # Project specific
 restaurant_management_api/instance/
 restaurant_management_api/myenv/
+restaurant_management_api/flask_session/
 restaurant_management_frontend/dist/
 upload/
 *.log
