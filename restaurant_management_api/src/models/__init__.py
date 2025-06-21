@@ -13,6 +13,7 @@ from .expense import Expense
 from .category import Category
 from .uncategorized_item import UncategorizedItem
 from .file_upload import FileUpload
+from .tenant import Tenant
 
 # Export models
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     'Expense',
     'Category',
     'UncategorizedItem',
-    'FileUpload'
+    'FileUpload',
+    'Tenant'
 ] 

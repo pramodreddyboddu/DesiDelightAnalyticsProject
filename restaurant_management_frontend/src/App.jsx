@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Input } from '@/components/ui/input.jsx';
@@ -10,8 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { ToastProvider, useToast } from '@/components/ui/toast.jsx';
-import { Download } from 'lucide-react';
-import { useApiData } from '@/hooks/use-api.js';
+import { Download, Upload, FileText, Users, Tag, DollarSign, TrendingUp } from 'lucide-react';
+import { useApiData, useApiMutation } from '@/hooks/use-api.js';
+import { useIsMobile } from '@/hooks/use-mobile.js';
+import { Toaster } from '@/components/ui/sonner.jsx';
+import { AuthProvider, useAuth } from '@/hooks/use-auth.jsx';
+import { LoginPage } from '@/components/LoginPage.jsx';
+import { SuperAdminConsole } from '@/components/SuperAdminConsole.jsx';
+import { TenantDashboard } from '@/components/TenantDashboard.jsx';
 
 // Import the new dashboard components
 import { SalesAnalyticsDashboard } from './components/SalesAnalyticsDashboard.jsx';
@@ -20,23 +26,9 @@ import { ProfitabilityDashboard } from './components/ProfitabilityDashboard.jsx'
 import { StaffPerformanceDashboard } from './components/StaffPerformanceDashboard.jsx';
 import { InventoryManagement } from './components/InventoryManagement.jsx';
 import { AIDashboard } from './components/AIDashboard.jsx';
+import { TenantManagement } from '@/components/TenantManagement.jsx';
+import { ReportsTab } from './components/ReportsTab.jsx';
 
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
-  BarChart3, 
-  Upload, 
-  FileText, 
-  Users, 
-  Tag,
-  CheckCircle,
-  AlertCircle,
-  LogOut,
-  Menu,
-  X,
-  Brain
-} from 'lucide-react';
 import './App.css';
 
 // API Configuration
@@ -45,96 +37,20 @@ const API_BASE_URL = 'http://localhost:5000/api';
 // Auth Context
 const AuthContext = React.createContext();
 
-const useAuth = () => {
-  const context = React.useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-// Auth Provider
-const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data);
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async (username, password) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        return { success: false, error: error.message || 'Invalid credentials' };
-      }
-
-      const userData = await response.json();
-      setUser(userData);
-      return { success: true };
-    } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Network error' };
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      setUser(null);
-    }
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
 // Login Component
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -145,16 +61,16 @@ const Login = () => {
     
     if (!result.success) {
       setError(result.error);
+      setLoading(false);
     }
-    
-    setLoading(false);
+    // No need to set loading to false on success, as the component will unmount
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">FreshMart Analytics</CardTitle>
+          <CardTitle className="text-2xl text-center">PlateIQ</CardTitle>
           <CardDescription className="text-center">
             Comprehensive Grocery & Restaurant Management System
           </CardDescription>
@@ -200,117 +116,84 @@ const Login = () => {
 };
 
 // Navigation Component
-const Navigation = ({ activeTab, setActiveTab }) => {
+const Navigation = ({ activeTab, onTabChange, isMobile }) => {
   const { user, logout } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isAdmin = user?.is_admin === true;
 
-  console.log('Navigation user:', user); // Debug log
-
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'sales', label: 'Sales Analytics', icon: DollarSign },
-    { id: 'chef-performance', label: 'Chef Performance', icon: Users },
-    { id: 'profitability', label: 'Profitability', icon: TrendingUp },
-    { id: 'inventory', label: 'Inventory', icon: FileText },
-    { id: 'reports', label: 'Reports & Export', icon: FileText },
-    { id: 'ai', label: 'AI Insights', icon: Brain },
+  const tabs = [
+    { id: 'sales', label: 'Sales Analytics', icon: '📊' },
+    { id: 'profitability', label: 'Profitability', icon: '💰' },
+    { id: 'staff', label: 'Staff Performance', icon: '👥' },
+    { id: 'inventory', label: 'Inventory', icon: '📦' },
+    { id: 'reports', label: 'Reports', icon: '📋' },
+    { id: 'ai', label: 'AI Dashboard', icon: '🤖' },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin Panel', icon: '⚙️' }] : []),
+    ...(isAdmin ? [{ id: 'tenants', label: 'Tenant Management', icon: '🏢' }] : []),
   ];
 
-  if (user?.role === 'admin') {
-    console.log('Adding admin panel tab'); // Debug log
-    navItems.push({ id: 'admin', label: 'Admin Panel', icon: Upload });
+  if (isMobile) {
+    return (
+      <div className="flex flex-col space-y-2 p-4">
+        {tabs.map((tab) => (
+          <Button
+            key={tab.id}
+            variant={activeTab === tab.id ? 'default' : 'outline'}
+            className="justify-start"
+            onClick={() => onTabChange(tab.id)}
+          >
+            <span className="mr-2">{tab.icon}</span>
+            {tab.label}
+          </Button>
+        ))}
+        <Button variant="outline" onClick={logout} className="mt-4">
+          Logout
+        </Button>
+      </div>
+    );
   }
 
   return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">FreshMart Analytics</h1>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-2">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                      activeTab === item.id
-                        ? 'border-blue-500 text-gray-900'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                    style={{ minWidth: 0, paddingLeft: '4px', paddingRight: '4px' }}
-                  >
-                    <Icon className="w-4 h-4 mr-1" />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="hidden sm:ml-6 sm:flex sm:items-center">
-            <span className="text-sm text-gray-700 mr-4">Welcome, {user?.username}</span>
-            <Button variant="outline" size="sm" onClick={logout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
-          </div>
-          <div className="sm:hidden flex items-center">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="sm:hidden">
-          <div className="pt-2 pb-3 space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium w-full text-left ${
-                    activeTab === item.id
-                      ? 'bg-blue-50 border-blue-500 text-blue-700'
-                      : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 inline mr-2" />
-                  {item.label}
-                </button>
-              );
-            })}
-            <div className="border-t border-gray-200 pt-4 pb-3">
-              <div className="flex items-center px-4">
-                <div className="text-base font-medium text-gray-800">{user?.username}</div>
-              </div>
-              <div className="mt-3 space-y-1">
-                <button
-                  onClick={logout}
-                  className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 w-full text-left"
-                >
-                  <LogOut className="w-4 h-4 inline mr-2" />
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </nav>
+    <div className="flex flex-col space-y-2 p-4">
+      {tabs.map((tab) => (
+        <Button
+          key={tab.id}
+          variant={activeTab === tab.id ? 'default' : 'outline'}
+          className="justify-start"
+          onClick={() => onTabChange(tab.id)}
+        >
+          <span className="mr-2">{tab.icon}</span>
+          {tab.label}
+        </Button>
+      ))}
+      <Button variant="outline" onClick={logout} className="mt-4">
+        Logout
+      </Button>
+    </div>
   );
+};
+
+// Dashboard Component
+const Dashboard = ({ activeTab }) => {
+  switch (activeTab) {
+    case 'sales':
+      return <SalesAnalyticsDashboard />;
+    case 'profitability':
+      return <ProfitabilityDashboard />;
+    case 'staff':
+      return <StaffPerformanceDashboard />;
+    case 'inventory':
+      return <InventoryManagement />;
+    case 'reports':
+      return <ReportsTab />;
+    case 'ai':
+      return <AIDashboard />;
+    case 'admin':
+      return <AdminPanel />;
+    case 'tenants':
+      return <TenantManagement />;
+    default:
+      return <SalesAnalyticsDashboard />;
+  }
 };
 
 // Dashboard Overview Component
@@ -508,211 +391,85 @@ const DashboardOverview = ({ setActiveTab }) => {
   );
 };
 
-// Tab Components
-const SalesTab = () => <SalesAnalyticsDashboard />;
-const ChefPerformanceTab = () => <StaffPerformanceDashboard />;
-const ProfitabilityTab = () => <ProfitabilityDashboard />;
-const InventoryTab = () => <InventoryManagement />;
-const AITab = () => <AIDashboard />;
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  console.log("ProtectedRoute - user:", user, "loading:", loading);
 
-// Reports Tab Component
-const ReportsTab = () => {
-  const [dateRange, setDateRange] = useState({ from: null, to: null });
-  const [selectedReport, setSelectedReport] = useState('sales');
-  const [loading, setLoading] = useState(false);
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
-  const handleExport = async (format) => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (dateRange.from) params.append('start_date', dateRange.from.toISOString());
-      if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
-      params.append('format', format);
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
 
-      const response = await fetch(`${API_BASE_URL}/reports/${selectedReport}?${params}`, {
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = `${selectedReport}_report.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error('Error exporting report:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Reports & Export</h2>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Generate Report</CardTitle>
-          <CardDescription>Select report type and date range to generate comprehensive business reports</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Report Type</Label>
-              <Select value={selectedReport} onValueChange={setSelectedReport}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select report type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sales">Sales Report</SelectItem>
-                  <SelectItem value="profitability">Profitability Report</SelectItem>
-                  <SelectItem value="chef-performance">Chef Performance Report</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Date Range</Label>
-              <DatePickerWithRange date={dateRange} setDate={setDateRange} />
-            </div>
-          </div>
-
-          <div className="flex space-x-2">
-            <Button 
-              variant="outline" 
-              onClick={() => handleExport('csv')}
-              disabled={loading}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => handleExport('excel')}
-              disabled={loading}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Excel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Report Types</CardTitle>
-          <CardDescription>Available report types and their contents</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold">Sales Report</h3>
-              <p className="text-sm text-gray-600">
-                Comprehensive sales data including item details, quantities, revenue, discounts, and taxes.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold">Profitability Report</h3>
-              <p className="text-sm text-gray-600">
-                Detailed analysis of sales, expenses, and profit margins across different categories.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold">Chef Performance Report</h3>
-              <p className="text-sm text-gray-600">
-                Performance metrics for chefs including sales attribution, dish popularity, and revenue analysis.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return children;
 };
 
-const AdminTab = () => <AdminPanel />;
-
-// Main App Component
+// Main App Component (Dashboard)
 const MainApp = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const { user, logout } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <DashboardOverview setActiveTab={setActiveTab} />;
-      case 'sales':
-        return <SalesTab />;
-      case 'chef-performance':
-        return <ChefPerformanceTab />;
-      case 'profitability':
-        return <ProfitabilityTab />;
-      case 'inventory':
-        return <InventoryTab />;
-      case 'reports':
-        return <ReportsTab />;
-      case 'ai':
-        return <AITab />;
-      case 'admin':
-        return <AdminTab />;
-      default:
-        return <DashboardOverview setActiveTab={setActiveTab} />;
-    }
-  };
+  const [activeTab, setActiveTab] = useState('sales');
+  const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="max-w-7xl mx-auto">
-        {renderContent()}
+    <div className={`app-container ${isMobile ? 'mobile' : ''}`}>
+      <aside className="sidebar">
+        <Navigation activeTab={activeTab} onTabChange={setActiveTab} isMobile={isMobile} />
+      </aside>
+      <main className="main-content">
+        <Dashboard activeTab={activeTab} />
       </main>
     </div>
   );
 };
 
-// Protected Route Component
-const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+function AppContent() {
+  const { user, loading, isAuthenticated } = useAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="xl" text="Loading application..." />
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
 
-  return user ? children : <Login />;
-};
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
-// Main App
-function App() {
+  const isSuperAdmin = user?.is_admin && !user?.tenant_id;
+
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <MainApp />
-                </ProtectedRoute>
-              } />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-        </Router>
-      </AuthProvider>
-    </ToastProvider>
+    <Router>
+      <Routes>
+        {/* Define the primary routes for each user type */}
+        <Route path="/admin/*" element={<SuperAdminConsole />} />
+        <Route path="/dashboard/*" element={<TenantDashboard />} />
+        
+        {/* 
+          This is the key fix: The fallback route now explicitly checks the user's role.
+          If a super admin lands on any non-/admin path, they are sent to /admin.
+          If any other user lands on a non-/dashboard path, they are sent to /dashboard.
+        */}
+        <Route
+          path="*"
+          element={<Navigate to={isSuperAdmin ? "/admin" : "/dashboard"} replace />}
+        />
+      </Routes>
+    </Router>
   );
 }
 
-export default App;
+const App = () => {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <AppContent />
+        <Toaster />
+      </AuthProvider>
+    </ToastProvider>
+  );
+};
 
+export default App;

@@ -664,3 +664,80 @@ def get_quick_actions():
         logging.error(f"Error fetching quick actions: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@dashboard_bp.route('/stats', methods=['GET'])
+@login_required
+def get_dashboard_stats():
+    """Get restaurant-specific statistics for tenant dashboard"""
+    try:
+        # Get today's date
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        # Get today's sales
+        today_sales = db.session.query(func.sum(Sale.total_revenue)).filter(
+            func.date(Sale.line_item_date) == today
+        ).scalar() or 0
+        
+        # Get yesterday's sales for comparison
+        yesterday_sales = db.session.query(func.sum(Sale.total_revenue)).filter(
+            func.date(Sale.line_item_date) == yesterday
+        ).scalar() or 0
+        
+        # Calculate sales growth
+        sales_growth = 0
+        if yesterday_sales > 0:
+            sales_growth = ((today_sales - yesterday_sales) / yesterday_sales) * 100
+        
+        # Get today's orders
+        today_orders = db.session.query(func.count(func.distinct(Sale.order_id))).filter(
+            func.date(Sale.line_item_date) == today
+        ).scalar() or 0
+        
+        # Get average order value
+        avg_order_value = 0
+        if today_orders > 0:
+            avg_order_value = today_sales / today_orders
+        
+        # Get staff statistics (placeholder - would need actual staff data)
+        active_staff = 5  # Placeholder
+        total_staff = 8   # Placeholder
+        
+        # Get low stock items
+        low_stock_items = db.session.query(func.count(Item.id)).filter(
+            Item.quantity <= Item.reorder_point
+        ).scalar() or 0
+        
+        # Get recent activity (placeholder)
+        recent_activity = [
+            {
+                'description': 'New order received: #ORD-001',
+                'timestamp': '2024-01-15 14:30:00',
+                'type': 'order'
+            },
+            {
+                'description': 'Inventory updated: 50 items',
+                'timestamp': '2024-01-15 12:15:00',
+                'type': 'inventory'
+            },
+            {
+                'description': 'Sales report generated',
+                'timestamp': '2024-01-15 10:00:00',
+                'type': 'report'
+            }
+        ]
+        
+        return jsonify({
+            'today_sales': float(today_sales),
+            'sales_growth': round(sales_growth, 1),
+            'today_orders': today_orders,
+            'avg_order_value': round(avg_order_value, 2),
+            'active_staff': active_staff,
+            'total_staff': total_staff,
+            'low_stock_items': low_stock_items,
+            'recent_activity': recent_activity
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting dashboard stats: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+

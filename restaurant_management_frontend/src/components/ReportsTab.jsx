@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
-import { DatePickerWithRange } from '@/components/ui/date-picker-with-range.jsx';
+import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import { Download } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:5000/api';

@@ -32,18 +32,14 @@ def login():
         session['username'] = user.username
         session['role'] = user.role
         session['is_admin'] = user.is_admin
+        session['tenant_id'] = user.tenant_id
 
         # Only log successful login
         current_app.logger.warning(f'User {username} logged in successfully')
 
         return jsonify({
             'message': 'Login successful',
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'role': user.role,
-                'is_admin': user.is_admin
-            }
+            'user': user.to_dict()
         })
     except Exception as e:
         current_app.logger.error(f"Login error: {str(e)}")
@@ -83,14 +79,15 @@ def get_current_user():
 
         user = User.query.get(user_id)
         if not user:
-            return jsonify({'error': 'User not found'}), 404
+            # If user not found, clear the invalid session
+            session.clear()
+            return jsonify({'error': 'User not found in database'}), 404
 
-        return jsonify({
-            'id': user.id,
-            'username': user.username,
-            'role': user.role,
-            'is_admin': user.is_admin
-        })
+        # Ensure session is up-to-date with DB
+        session['tenant_id'] = user.tenant_id
+        session['is_admin'] = user.is_admin
+
+        return jsonify({'user': user.to_dict()})
     except Exception as e:
         current_app.logger.error(f"Get current user error: {str(e)}")
         return jsonify({'error': str(e)}), 500

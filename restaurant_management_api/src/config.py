@@ -24,16 +24,16 @@ class Config:
     ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
     
     # Security Configuration
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'your_default_secret_key_here')
     SESSION_COOKIE_SECURE = False  # For local development
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = None  # Allow cross-site requests for development
     SESSION_COOKIE_PATH = '/'
     SESSION_COOKIE_DOMAIN = None  # Let Flask set domain automatically
-    SESSION_COOKIE_NAME = 'desi_delight_session'  # Unique session name
+    SESSION_COOKIE_NAME = 'plateiq_session'  # Unique session name
     SESSION_REFRESH_EACH_REQUEST = True  # Keep session alive
     SESSION_USE_SIGNER = True
-    SESSION_KEY_PREFIX = 'desi_delight_'
+    SESSION_KEY_PREFIX = 'plateiq_'
     
     # CORS Configuration
     CORS_ORIGINS = ["http://localhost:5173"]  # Strict CORS origins
@@ -58,7 +58,7 @@ class Config:
     
     # Session Configuration
     SESSION_TYPE = 'filesystem'  # Use filesystem for development
-    SESSION_FILE_DIR = os.path.join(gettempdir(), 'desi_delight_sessions')  # Dedicated session directory
+    SESSION_FILE_DIR = os.path.join(gettempdir(), 'plateiq_sessions')  # Dedicated session directory
     os.makedirs(SESSION_FILE_DIR, exist_ok=True)  # Ensure directory exists
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)

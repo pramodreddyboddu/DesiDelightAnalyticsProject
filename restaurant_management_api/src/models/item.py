@@ -16,7 +16,8 @@ class Item(db.Model):
     cost = db.Column(db.Float, nullable=True, default=0.0)
     product_code = db.Column(db.String(50), nullable=True)
     sku = db.Column(db.String(50), nullable=True)
-    quantity = db.Column(db.Integer, nullable=True, default=0)
+    quantity = db.Column(db.Integer, default=0, nullable=False)
+    reorder_point = db.Column(db.Integer, default=10, nullable=False)
     is_hidden = db.Column(db.Boolean, nullable=False, default=False)
     default_tax_rates = db.Column(db.Boolean, nullable=False, default=True)
     non_revenue_item = db.Column(db.Boolean, nullable=False, default=False)
@@ -31,7 +32,7 @@ class Item(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    sales = db.relationship('Sale', back_populates='item', lazy=True)
+    sales = db.relationship('Sale', back_populates='item', lazy=True, cascade="all, delete-orphan")
     chef_mappings = db.relationship('ChefDishMapping', back_populates='item', lazy=True)
 
     def to_dict(self):
@@ -48,6 +49,7 @@ class Item(db.Model):
             'product_code': self.product_code,
             'sku': self.sku,
             'quantity': self.quantity,
+            'reorder_point': self.reorder_point,
             'is_hidden': self.is_hidden,
             'default_tax_rates': self.default_tax_rates,
             'non_revenue_item': self.non_revenue_item,

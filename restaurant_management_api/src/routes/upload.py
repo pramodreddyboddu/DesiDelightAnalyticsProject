@@ -1,13 +1,15 @@
-from flask import Blueprint, request, jsonify
-from ..models import db, Item, Chef, ChefDishMapping, Sale, Expense, UncategorizedItem, FileUpload
-from ..routes.auth import login_required, admin_required
+from flask import Blueprint, request, jsonify, g
+from ..models import db, Item, Chef, ChefDishMapping, Sale, Expense, UncategorizedItem, FileUpload, Category, Tenant
+from ..utils.auth import login_required, admin_required
 import pandas as pd
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import tempfile
+import logging
 
 upload_bp = Blueprint('upload', __name__)
+logger = logging.getLogger(__name__)
 
 UPLOAD_FOLDER = '/tmp/uploads'
 ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
@@ -882,4 +884,102 @@ def get_upload_status(file_id):
         return jsonify(file_upload.to_dict()), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@upload_bp.route('/tenant-data', methods=['POST'])
+@admin_required
+def upload_tenant_data():
+    """Uploads data for a specific tenant."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file type'}), 400
+
+        tenant_id = g.user.tenant_id
+        if not tenant_id:
+            return jsonify({'error': 'User is not associated with a tenant'}), 403
+
+        filename = secure_filename(file.filename)
+        # Use a temporary directory for file storage
+        with tempfile.TemporaryDirectory() as temp_dir:
+            filepath = os.path.join(temp_dir, filename)
+            file.save(filepath)
+
+            # For now, we only support 'items' from CSV
+            # Future implementation could check request.form['data_type']
+            try:
+                df = pd.read_csv(filepath)
+            except Exception as e:
+                logger.error(f"Tenant {tenant_id} failed to upload data. Error reading CSV: {str(e)}")
+                return jsonify({'error': f'Could not read CSV file: {str(e)}'}), 400
+
+            required_columns = ['name', 'category_name', 'price', 'quantity']
+            if not all(col in df.columns for col in required_columns):
+                return jsonify({'error': f'CSV must have the following columns: {", ".join(required_columns)}'}), 400
+
+            processed_count = 0
+            failed_rows = []
+
+            for index, row in df.iterrows():
+                try:
+                    category_name = row['category_name'].strip()
+                    item_name = row['name'].strip()
+                    price = float(row['price'])
+                    quantity = int(row['quantity'])
+
+                    # Find or create category for this tenant
+                    category = Category.query.filter_by(name=category_name, tenant_id=tenant_id).first()
+                    if not category:
+                        category = Category(name=category_name, tenant_id=tenant_id)
+                        db.session.add(category)
+                        db.session.flush() # To get category.id for the item
+
+                    # Find or create item for this tenant
+                    item = Item.query.filter_by(name=item_name, tenant_id=tenant_id).first()
+                    if not item:
+                        item = Item(
+                            name=item_name,
+                            price=price,
+                            quantity=quantity,
+                            category_id=category.id,
+                            tenant_id=tenant_id
+                        )
+                        db.session.add(item)
+                    else:
+                        # Update existing item
+                        item.price = price
+                        item.quantity = quantity
+                        item.category_id = category.id
+                    
+                    processed_count += 1
+
+                except Exception as e:
+                    db.session.rollback()
+                    failed_rows.append({'row': index + 2, 'error': str(e)})
+                    logger.warning(f"Tenant {tenant_id} data upload: Failed to process row {index + 2}. Error: {str(e)}")
+                    continue
+            
+            db.session.commit()
+
+            if failed_rows:
+                 return jsonify({
+                    'message': f'Upload partially completed for tenant {tenant_id}',
+                    'processed_count': processed_count,
+                    'failed_count': len(failed_rows),
+                    'errors': failed_rows
+                }), 207
+            
+            return jsonify({
+                'message': f'Successfully uploaded and processed {processed_count} items for tenant {tenant_id}'
+            }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Tenant data upload failed for user {g.user.id}. Error: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
 

@@ -12,6 +12,10 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True)
     role = db.Column(db.String(20), default='user')
     is_admin = db.Column(db.Boolean, default=False)
+    
+    # Multi-tenant support (nullable for backward compatibility)
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -30,7 +34,18 @@ class User(db.Model):
             'username': self.username,
             'role': self.role,
             'is_admin': self.is_admin,
+            'tenant_id': self.tenant_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+    
+    @property
+    def is_super_admin(self):
+        """Check if user is a super admin (system-wide admin)"""
+        return self.is_admin and self.tenant_id is None
+    
+    @property
+    def is_tenant_admin(self):
+        """Check if user is a tenant admin"""
+        return self.is_admin and self.tenant_id is not None
 

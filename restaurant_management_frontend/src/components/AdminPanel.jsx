@@ -9,7 +9,8 @@ import { Progress } from '@/components/ui/progress.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { useToast } from '@/components/ui/toast.jsx';
 import { useApiData, useApiMutation } from '@/hooks/use-api.js';
-import { Upload, FileText, CheckCircle, AlertCircle, X, Trash2, Database, Calendar, RefreshCw } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth.jsx';
+import { Upload, FileText, CheckCircle, AlertCircle, X, Trash2, Database, Calendar, RefreshCw, Shield } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/ui/date-picker.jsx';
 import {
   Dialog,
@@ -34,6 +35,13 @@ export const AdminPanel = () => {
   const [deleteStatus, setDeleteStatus] = useState({ status: '', message: '' });
   
   const { success, error: showError, info } = useToast();
+  const { user } = useAuth();
+
+  // Determine user permissions
+  const isSuperAdmin = user?.is_admin && !user?.tenant_id;
+  const isTenantAdmin = user?.is_admin && user?.tenant_id;
+  const hasUploadPermissions = isSuperAdmin || isTenantAdmin;
+  const hasDeletePermissions = isSuperAdmin || isTenantAdmin; // Both super admins and tenant admins can delete data
 
   // Use API hooks for data fetching with caching
   const { data: dataStats, loading: statsLoading, error: statsError, refresh: refreshStats } = useApiData('/admin/data-stats', []);
@@ -282,7 +290,17 @@ export const AdminPanel = () => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between w-full mb-4">
         <h2 className="text-2xl font-bold text-gray-900">Admin Panel</h2>
-        <span className="text-md text-gray-700 whitespace-nowrap ml-4">Welcome, Admin</span>
+        <div className="flex items-center space-x-4">
+          <span className="text-md text-gray-700 whitespace-nowrap">
+            Welcome, {isSuperAdmin ? 'Super Admin' : isTenantAdmin ? 'Restaurant Admin' : 'Admin'}
+          </span>
+          {isTenantAdmin && (
+            <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+              <Shield className="w-4 h-4 text-blue-600" />
+              <span className="text-sm text-blue-700">Restaurant Admin</span>
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Data Management Section */}
@@ -292,7 +310,12 @@ export const AdminPanel = () => {
             <Database className="w-4 h-4 mr-2" />
             Data Management
           </CardTitle>
-          <CardDescription>Manage and monitor your data</CardDescription>
+          <CardDescription>
+            {isTenantAdmin 
+              ? 'Upload and manage your restaurant data' 
+              : 'Manage and monitor system data'
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -331,137 +354,155 @@ export const AdminPanel = () => {
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh Stats
             </Button>
-            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Data
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete Data</DialogTitle>
-                  <DialogDescription>
-                    Select the data type and date range to delete. This action cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Data Type</Label>
-                    <Select value={selectedDataType} onValueChange={setSelectedDataType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select data type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Data</SelectItem>
-                        <SelectItem value="sales">Sales Data</SelectItem>
-                        <SelectItem value="inventory">Inventory Data</SelectItem>
-                        <SelectItem value="expenses">Expenses Data</SelectItem>
-                        <SelectItem value="chef_mapping">Chef Mapping Data</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date Range</Label>
-                    <DatePickerWithRange date={dateRange} setDate={setDateRange} />
-                  </div>
-                  {deleteStatus.message && (
-                    <Alert variant={deleteStatus.status === 'error' ? 'destructive' : 'default'}>
-                      <AlertDescription>{deleteStatus.message}</AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                    Cancel
+            {hasDeletePermissions && (
+              <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Data
                   </Button>
-                  <Button variant="destructive" onClick={handleDeleteData} disabled={loading}>
-                    {loading ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Delete Data</DialogTitle>
+                    <DialogDescription>
+                      Select the data type and date range to delete. This action cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Data Type</Label>
+                      <Select value={selectedDataType} onValueChange={setSelectedDataType}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select data type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Data</SelectItem>
+                          <SelectItem value="sales">Sales Data</SelectItem>
+                          <SelectItem value="inventory">Inventory Data</SelectItem>
+                          <SelectItem value="expenses">Expenses Data</SelectItem>
+                          <SelectItem value="chef_mapping">Chef Mapping Data</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Date Range</Label>
+                      <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+                    </div>
+                    {deleteStatus.message && (
+                      <Alert variant={deleteStatus.status === 'error' ? 'destructive' : 'default'}>
+                        <AlertDescription>{deleteStatus.message}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button variant="destructive" onClick={handleDeleteData} disabled={loading}>
+                      {loading ? 'Deleting...' : 'Delete'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* File Upload Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <FileUploadCard
-          title="Sales Data Upload"
-          description="Upload monthly sales reports (CSV format)"
-          fileType="sales"
-          acceptedTypes=".csv"
-        />
-        
-        <FileUploadCard
-          title="Inventory Data Upload"
-          description="Upload inventory and product information (Excel format)"
-          fileType="inventory"
-          acceptedTypes=".xlsx,.xls"
-        />
-        
-        <FileUploadCard
-          title="Chef Mapping Upload"
-          description="Upload chef-to-dish mapping data (Excel format)"
-          fileType="chef-mapping"
-          acceptedTypes=".xlsx,.xls"
-        />
-        
-        <FileUploadCard
-          title="Expenses Data Upload"
-          description="Upload expense and spending records (Excel format)"
-          fileType="expenses"
-          acceptedTypes=".xlsx,.xls"
-        />
-      </div>
+      {/* File Upload Section - Only show if user has upload permissions */}
+      {hasUploadPermissions ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <FileUploadCard
+            title="Sales Data Upload"
+            description="Upload monthly sales reports (CSV format)"
+            fileType="sales"
+            acceptedTypes=".csv"
+          />
+          
+          <FileUploadCard
+            title="Inventory Data Upload"
+            description="Upload inventory and product information (Excel format)"
+            fileType="inventory"
+            acceptedTypes=".xlsx,.xls"
+          />
+          
+          <FileUploadCard
+            title="Chef Mapping Upload"
+            description="Upload chef-to-dish mapping data (Excel format)"
+            fileType="chef-mapping"
+            acceptedTypes=".xlsx,.xls"
+          />
+          
+          <FileUploadCard
+            title="Expenses Data Upload"
+            description="Upload expense and spending records (Excel format)"
+            fileType="expenses"
+            acceptedTypes=".xlsx,.xls"
+          />
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Shield className="w-4 h-4 mr-2" />
+              Access Restricted
+            </CardTitle>
+            <CardDescription>
+              You don't have permission to upload data. Contact your system administrator.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
-      {/* Uncategorized Items Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <FileText className="w-4 h-4 mr-2" />
-            Uncategorized Items Management
-          </CardTitle>
-          <CardDescription>
-            Items found in sales data that need manual categorization
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {uncategorizedItems.length === 0 ? (
-            <p className="text-gray-500">No uncategorized items found.</p>
-          ) : (
-            <div className="space-y-4">
-              {uncategorizedItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-medium">{item.item_name}</p>
-                    <p className="text-sm text-gray-500">
-                      Found {item.frequency} times in sales data
-                    </p>
+      {/* Uncategorized Items Management - Only show if user has upload permissions */}
+      {hasUploadPermissions && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <FileText className="w-4 h-4 mr-2" />
+              Uncategorized Items Management
+            </CardTitle>
+            <CardDescription>
+              Items found in sales data that need manual categorization
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {uncategorizedItems.length === 0 ? (
+              <p className="text-gray-500">No uncategorized items found.</p>
+            ) : (
+              <div className="space-y-4">
+                {uncategorizedItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium">{item.item_name}</p>
+                      <p className="text-sm text-gray-500">
+                        Found {item.frequency} times in sales data
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Select onValueChange={(category) => categorizeItem(item.id, category)}>
+                        <SelectTrigger className="w-48">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Meat">Meat</SelectItem>
+                          <SelectItem value="Vegetables">Vegetables</SelectItem>
+                          <SelectItem value="Grocery">Grocery</SelectItem>
+                          <SelectItem value="Breakfast">Restaurant - Breakfast</SelectItem>
+                          <SelectItem value="Lunch">Restaurant - Lunch</SelectItem>
+                          <SelectItem value="Dinner">Restaurant - Dinner</SelectItem>
+                          <SelectItem value="Kitchen">Kitchen Supplies</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Select onValueChange={(category) => categorizeItem(item.id, category)}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Meat">Meat</SelectItem>
-                        <SelectItem value="Vegetables">Vegetables</SelectItem>
-                        <SelectItem value="Grocery">Grocery</SelectItem>
-                        <SelectItem value="Breakfast">Restaurant - Breakfast</SelectItem>
-                        <SelectItem value="Lunch">Restaurant - Lunch</SelectItem>
-                        <SelectItem value="Dinner">Restaurant - Dinner</SelectItem>
-                        <SelectItem value="Kitchen">Kitchen Supplies</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

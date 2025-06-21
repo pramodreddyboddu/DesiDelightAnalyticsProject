@@ -6,12 +6,65 @@ from ..models.item import Item
 from ..models.expense import Expense
 from ..models.chef_dish_mapping import ChefDishMapping
 from ..models.file_upload import FileUpload
-from ..utils.auth import admin_required
+from ..models.tenant import Tenant
+from ..models.user import User
+from ..utils.auth import admin_required, super_admin_required
 from sqlalchemy import func, case
 import logging
 import pytz
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+@admin_bp.route('/system-stats', methods=['GET'])
+@super_admin_required
+def get_system_stats():
+    """Get system-wide statistics for super admin"""
+    try:
+        # Get tenant statistics
+        total_tenants = db.session.query(func.count(Tenant.id)).scalar()
+        active_tenants = db.session.query(func.count(Tenant.id)).filter(Tenant.is_active == True).scalar()
+        
+        # Get user statistics
+        total_users = db.session.query(func.count(User.id)).scalar()
+        active_users_this_month = db.session.query(func.count(User.id)).filter(
+            User.created_at >= datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        ).scalar()
+        
+        # Calculate monthly revenue (placeholder - would need actual billing data)
+        monthly_revenue = total_tenants * 99  # Assuming $99/month per tenant
+        revenue_growth = 15  # Placeholder growth percentage
+        
+        # Get recent activity (placeholder)
+        recent_activity = [
+            {
+                'description': 'New tenant registered: Spice Garden',
+                'timestamp': '2024-01-15 10:30:00',
+                'type': 'tenant_created'
+            },
+            {
+                'description': 'Subscription upgraded: Premium Plan',
+                'timestamp': '2024-01-14 15:45:00',
+                'type': 'subscription_upgrade'
+            },
+            {
+                'description': 'System maintenance completed',
+                'timestamp': '2024-01-13 02:00:00',
+                'type': 'maintenance'
+            }
+        ]
+        
+        return jsonify({
+            'total_tenants': total_tenants,
+            'active_tenants': active_tenants,
+            'total_users': total_users,
+            'active_users': active_users_this_month,
+            'monthly_revenue': monthly_revenue,
+            'revenue_growth': revenue_growth,
+            'recent_activity': recent_activity
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error getting system stats: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @admin_bp.route('/data-stats', methods=['GET'])
 @admin_required

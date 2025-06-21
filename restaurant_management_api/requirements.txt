@@ -33,7 +33,7 @@ seaborn==0.12.2
 
 # Time Series Analysis
 statsmodels==0.14.0
-prophet==1.1.4
+# prophet==1.1.4
 
 # NLP
 spacy==3.6.0
@@ -57,3 +57,6 @@ psycopg2-binary==2.9.7
 
 # Monitoring
 prometheus-client==0.17.1
+
+# Compatibility Fix
+watchdog==1.0.2

@@ -20,6 +20,7 @@ from src.routes.reports import reports_bp
 from src.routes.admin import admin_bp
 from src.routes.inventory import inventory_bp
 from src.routes.ai import ai_bp
+from src.routes.tenant import tenant_bp
 from src.models import db
 from src.models.user import User
 from src.models.item import Item
@@ -30,6 +31,7 @@ from src.models.expense import Expense
 from src.models.category import Category
 from src.models.uncategorized_item import UncategorizedItem
 from src.models.file_upload import FileUpload
+from src.models.tenant import Tenant
 from src.config import config
 from src.utils.logger import setup_logger, log_request_info
 from src.utils.error_handlers import setup_error_handlers, log_request_error
@@ -66,12 +68,12 @@ def create_app(config_name='default'):
     app.config['SESSION_COOKIE_SAMESITE'] = None  # Allow cross-site requests
     app.config['SESSION_COOKIE_PATH'] = '/'
     app.config['SESSION_COOKIE_DOMAIN'] = None
-    app.config['SESSION_COOKIE_NAME'] = 'desi_delight_session'
+    app.config['SESSION_COOKIE_NAME'] = 'plateiq_session'
     app.config['SESSION_REFRESH_EACH_REQUEST'] = True
     app.config['SESSION_USE_SIGNER'] = True
-    app.config['SESSION_KEY_PREFIX'] = 'desi_delight_'
+    app.config['SESSION_KEY_PREFIX'] = 'plateiq_'
     app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_FILE_DIR'] = os.path.join(gettempdir(), 'desi_delight_sessions')
+    app.config['SESSION_FILE_DIR'] = os.path.join(gettempdir(), 'plateiq_sessions')
     os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
     
     # Create database tables and admin user
@@ -119,6 +121,11 @@ def create_app(config_name='default'):
             # Generate unique request ID for tracking
             g.request_id = str(uuid.uuid4())
             
+            # Load user object if logged in
+            g.user = None
+            if 'user_id' in session:
+                g.user = User.query.get(session['user_id'])
+            
             # Log all requests for debugging
             logger.info(f"Request: {request.method} {request.path} - Origin: {request.headers.get('Origin', 'None')}")
             logger.info(f"Headers: {dict(request.headers)}")
@@ -141,6 +148,7 @@ def create_app(config_name='default'):
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
+    app.register_blueprint(tenant_bp, url_prefix='/api/tenant')
     logger.info("Blueprints registered successfully")
     
     # Health check endpoint
@@ -148,7 +156,7 @@ def create_app(config_name='default'):
     def index():
         return jsonify({
             'status': 'healthy',
-            'message': 'Desi Delight Analytics API is running!',
+            'message': 'PlateIQ Analytics API is running!',
             'version': '1.0.0'
         }), 200
     
