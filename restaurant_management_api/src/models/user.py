@@ -29,12 +29,20 @@ class User(db.Model):
         return f'<User {self.username}>'
 
     def to_dict(self):
+        tenant_info = None
+        if self.tenant:
+            tenant_info = {
+                'id': self.tenant.id,
+                'name': self.tenant.name
+            }
+            
         return {
             'id': self.id,
             'username': self.username,
             'role': self.role,
             'is_admin': self.is_admin,
             'tenant_id': self.tenant_id,
+            'tenant': tenant_info,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

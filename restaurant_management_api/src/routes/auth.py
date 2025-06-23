@@ -6,6 +6,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import os
 import pickle
 import logging
+from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -95,6 +96,7 @@ def get_current_user():
 @auth_bp.route('/register', methods=['POST'])
 @admin_required
 def register():
+    """Creates a new user, scoped to the requesting admin's tenant if applicable."""
     try:
         data = request.get_json()
         username = data.get('username')
@@ -105,27 +107,34 @@ def register():
         if not username or not password:
             return jsonify({'error': 'Username and password are required'}), 400
         
-        if User.query.filter_by(username=username).first():
-            return jsonify({'error': 'Username already exists'}), 400
+        # Get the admin user who is creating this new user
+        requesting_user_id = session.get('user_id')
+        requesting_user = User.query.get(requesting_user_id)
+        
+        # New user should belong to the same tenant as the admin creating them
+        tenant_id = requesting_user.tenant_id
+
+        # Check for username collision ONLY within the same tenant
+        existing_user = User.query.filter_by(username=username, tenant_id=tenant_id).first()
+        if existing_user:
+            return jsonify({'error': f"Username '{username}' already exists in this tenant"}), 400
         
         user = User(
             username=username,
             email=email,
             role=role,
-            is_admin=(role == 'admin')
+            is_admin=(role == 'admin'),
+            tenant_id=tenant_id  # Assign the tenant_id from the creator
         )
         user.set_password(password)
         
         db.session.add(user)
         db.session.commit()
         
-        return jsonify({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'role': user.role,
-            'is_admin': user.is_admin
-        }), 201
+        current_app.logger.info(f"Admin '{requesting_user.username}' created new user '{user.username}' for tenant '{tenant_id}'.")
+        
+        return jsonify(user.to_dict()), 201
+        
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error in register endpoint: {str(e)}")

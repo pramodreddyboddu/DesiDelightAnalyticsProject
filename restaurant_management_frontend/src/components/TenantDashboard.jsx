@@ -28,6 +28,7 @@ import { ReportsTab } from './ReportsTab.jsx';
 import { AdminPanel } from './AdminPanel.jsx';
 import { AIDashboard } from './AIDashboard.jsx';
 import { ProfitabilityDashboard } from './ProfitabilityDashboard.jsx';
+import { UserManagement } from './UserManagement.jsx';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -67,6 +68,7 @@ export const TenantDashboard = () => {
     // Admin-only features
     ...(isTenantAdmin ? [
       { name: 'Admin Panel', href: '/dashboard/admin', icon: Settings },
+      { name: 'User Management', href: '/dashboard/users', icon: Users },
     ] : []),
   ];
 
@@ -151,6 +153,7 @@ export const TenantDashboard = () => {
               {isTenantAdmin && (
                 <>
                   <Route path="admin" element={<AdminPanel />} />
+                  <Route path="users" element={<UserManagement />} />
                 </>
               )}
             </Routes>

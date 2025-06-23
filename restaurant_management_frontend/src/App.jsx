@@ -37,84 +37,6 @@ const API_BASE_URL = 'http://localhost:5000/api';
 // Auth Context
 const AuthContext = React.createContext();
 
-// Login Component
-const Login = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, user } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [user, navigate]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    const result = await login(username, password);
-    
-    if (!result.success) {
-      setError(result.error);
-      setLoading(false);
-    }
-    // No need to set loading to false on success, as the component will unmount
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">PlateIQ</CardTitle>
-          <CardDescription className="text-center">
-            Comprehensive Grocery & Restaurant Management System
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign in'}
-            </Button>
-          </form>
-          <div className="mt-4 text-sm text-gray-600 text-center">
-            Default credentials: admin / admin123
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
 // Navigation Component
 const Navigation = ({ activeTab, onTabChange, isMobile }) => {
   const { user, logout } = useAuth();
@@ -423,6 +345,35 @@ const MainApp = () => {
   );
 };
 
+const SuperAdminRoute = ({ children }) => {
+    const { user } = useAuth();
+    const isSuperAdmin = user?.is_admin && !user?.tenant_id;
+    // AppContent already checked for authentication.
+    // This guard ensures that only super admins can see super admin pages.
+    if (!isSuperAdmin) {
+      // If a non-super-admin tries to access an admin route, send them away.
+      return <Navigate to="/dashboard" replace />;
+    }
+    return children;
+};
+
+const TenantRoute = ({ children }) => {
+    const { user } = useAuth();
+    const isTenantUser = !!user?.tenant_id;
+    // This guard ensures that super admins can't access tenant-specific pages.
+    if (!isTenantUser) {
+        return <Navigate to="/admin" replace />;
+    }
+    return children;
+};
+
+const Redirector = () => {
+    const { user } = useAuth();
+    const isSuperAdmin = user?.is_admin && !user?.tenant_id;
+    // This component handles the initial redirect after login.
+    return <Navigate to={isSuperAdmin ? '/admin' : '/dashboard'} replace />;
+}
+
 function AppContent() {
   const { user, loading, isAuthenticated } = useAuth();
 
@@ -438,24 +389,27 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  const isSuperAdmin = user?.is_admin && !user?.tenant_id;
-
   return (
     <Router>
       <Routes>
-        {/* Define the primary routes for each user type */}
-        <Route path="/admin/*" element={<SuperAdminConsole />} />
-        <Route path="/dashboard/*" element={<TenantDashboard />} />
-        
-        {/* 
-          This is the key fix: The fallback route now explicitly checks the user's role.
-          If a super admin lands on any non-/admin path, they are sent to /admin.
-          If any other user lands on a non-/dashboard path, they are sent to /dashboard.
-        */}
-        <Route
-          path="*"
-          element={<Navigate to={isSuperAdmin ? "/admin" : "/dashboard"} replace />}
+        <Route 
+          path="/admin/*" 
+          element={
+            <SuperAdminRoute>
+              <SuperAdminConsole />
+            </SuperAdminRoute>
+          } 
         />
+        <Route 
+          path="/dashboard/*" 
+          element={
+            <TenantRoute>
+              <TenantDashboard />
+            </TenantRoute>
+          } 
+        />
+        {/* The Redirector will catch any other path and send the user to the correct home page. */}
+        <Route path="*" element={<Redirector />} />
       </Routes>
     </Router>
   );

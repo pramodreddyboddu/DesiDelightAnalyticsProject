@@ -109,7 +109,7 @@ def get_sales_summary():
         # Format the response
         return jsonify({
             'total_revenue': float(total_revenue),
-            'unique_order_count': unique_order_count,
+            'total_transactions': unique_order_count,
             'category_breakdown': [
                 {
                     'category': cat,

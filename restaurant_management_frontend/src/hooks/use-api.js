@@ -104,39 +104,22 @@ export const useApi = () => {
   };
 };
 
-export const useApiData = (endpoint, dependencies = []) => {
-  const [data, setData] = useState(null);
+export const useApiData = (url, dependencies = null, options = {}) => {
+  const { showToast = true, initialData = null } = options;
+  const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { get } = useApi();
-  const { error: showError } = useToast();
+  const { success, error: showError } = useToast();
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Build query parameters
       const params = new URLSearchParams();
       
-      if (Array.isArray(dependencies)) {
-        // Handle array format (legacy support)
-        if (dependencies[0] && dependencies[0].from) {
-          params.append('start_date', dependencies[0].from.toISOString());
-        }
-        if (dependencies[0] && dependencies[0].to) {
-          params.append('end_date', dependencies[0].to.toISOString());
-        }
-        
-        if (dependencies[1] && dependencies[1] !== 'all') {
-          params.append('category', dependencies[1]);
-        }
-        
-        if (dependencies[2] && dependencies[2] !== 'all') {
-          params.append('chef_id', dependencies[2]);
-        }
-      } else if (typeof dependencies === 'object') {
-        // Handle object format (new format)
+      if (dependencies && typeof dependencies === 'object') {
         Object.entries(dependencies).forEach(([key, value]) => {
           if (value !== null && value !== undefined && value !== 'all') {
             params.append(key, value);
@@ -144,18 +127,19 @@ export const useApiData = (endpoint, dependencies = []) => {
         });
       }
       
-      // Build the full URL with query parameters
-      const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+      const fullUrl = params.toString() ? `${url}?${params.toString()}` : url;
       
-      const result = await get(url);
+      const result = await get(fullUrl);
       setData(result);
     } catch (err) {
-      setError(err.message);
-      showError('Failed to load data', err.message);
+      setError(err);
+      if (showToast) {
+        showError('Failed to load data', err.error || 'An unexpected error occurred');
+      }
     } finally {
       setLoading(false);
     }
-  }, [endpoint, get, showError, ...(Array.isArray(dependencies) ? dependencies : Object.values(dependencies))]);
+  }, [url, get, showError, ...(Array.isArray(dependencies) ? dependencies : (dependencies ? Object.values(dependencies) : []))]);
 
   // Call fetchData when component mounts or dependencies change
   useEffect(() => {
@@ -172,28 +156,24 @@ export const useApiData = (endpoint, dependencies = []) => {
 export const useApiMutation = (endpoint, options = {}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { post, put, delete: del, invalidateCache } = useApi();
-  const { success } = useToast();
+  const { request, invalidateCache } = useApi();
+  const { success: showSuccess, error: showError } = useToast();
 
-  const mutate = useCallback(async (data, method = 'POST') => {
+  const mutate = useCallback(async (variables) => {
     try {
       setLoading(true);
       setError(null);
 
-      let result;
-      switch (method.toUpperCase()) {
-        case 'POST':
-          result = await post(endpoint, data);
-          break;
-        case 'PUT':
-          result = await put(endpoint, data);
-          break;
-        case 'DELETE':
-          result = await del(endpoint);
-          break;
-        default:
-          throw new Error(`Unsupported method: ${method}`);
-      }
+      // If endpoint is a function, call it with variables to get the dynamic URL
+      const url = typeof endpoint === 'function' ? endpoint(variables) : endpoint;
+      
+      const method = options.method || 'POST';
+      const body = options.method !== 'GET' ? JSON.stringify(variables) : undefined;
+
+      const result = await request(url, {
+        method: method,
+        body: body,
+      });
 
       // Invalidate related cache
       if (options.invalidateCache) {
@@ -201,18 +181,25 @@ export const useApiMutation = (endpoint, options = {}) => {
       }
 
       // Show success message
-      if (options.successMessage) {
-        success('Success', options.successMessage);
+      if (options.onSuccess) {
+          options.onSuccess(result, variables);
+      } else if (options.successMessage) {
+        showSuccess('Success', options.successMessage);
       }
 
       return result;
     } catch (err) {
-      setError(err.message);
+        if(options.onError) {
+            options.onError(err, variables);
+        } else {
+            setError(err.message);
+            showError('Mutation Failed', err.message);
+        }
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [endpoint, post, put, del, invalidateCache, success, options]);
+  }, [endpoint, options, request, invalidateCache, showSuccess, showError]);
 
   return { mutate, loading, error };
 }; 

@@ -22,9 +22,16 @@ class Sale(db.Model):
     payment_state = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    line_item_id = db.Column(db.Integer)
+    
+    # Add tenant_id for multi-tenancy
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
 
     # Define relationship with Item
     item = db.relationship('Item', back_populates='sales')
+
+    def __repr__(self):
+        return f'<Sale {self.id}>'
 
     def to_dict(self):
         return {

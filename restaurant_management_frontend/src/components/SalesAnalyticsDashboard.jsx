@@ -160,8 +160,8 @@ export const SalesAnalyticsDashboard = () => {
   }
 
   // Calculate totals based on filtered data
-  const totalRevenue = filteredSalesData?.category_breakdown?.reduce((sum, item) => sum + (item.revenue || 0), 0) || 0;
-  const totalTransactions = filteredSalesData?.category_breakdown?.reduce((sum, item) => sum + (item.count || 0), 0) || 0;
+  const totalRevenue = filteredSalesData?.total_revenue || 0;
+  const totalTransactions = filteredSalesData?.total_transactions || 0;
   const averageTransaction = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
   return (

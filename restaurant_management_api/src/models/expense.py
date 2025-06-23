@@ -8,13 +8,16 @@ class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(255))  # Made optional
     amount = db.Column(db.Float, nullable=False)
-    category = db.Column(db.String(50), nullable=False)
+    category = db.Column(db.String(100))
     vendor = db.Column(db.String(100))  # Added vendor field
     date = db.Column(db.DateTime, nullable=False)
     invoice = db.Column(db.String(50))  # Added invoice field
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Add tenant_id for multi-tenancy
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
 
     def to_dict(self):
         return {

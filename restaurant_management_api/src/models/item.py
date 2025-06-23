@@ -31,6 +31,9 @@ class Item(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Add tenant_id for multi-tenancy
+    tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
+
     # Relationships
     sales = db.relationship('Sale', back_populates='item', lazy=True, cascade="all, delete-orphan")
     chef_mappings = db.relationship('ChefDishMapping', back_populates='item', lazy=True)

@@ -21,6 +21,7 @@ from src.routes.admin import admin_bp
 from src.routes.inventory import inventory_bp
 from src.routes.ai import ai_bp
 from src.routes.tenant import tenant_bp
+from src.routes.tenant_data import tenant_data_bp
 from src.models import db
 from src.models.user import User
 from src.models.item import Item
@@ -109,9 +110,7 @@ def create_app(config_name='default'):
                  "supports_credentials": app.config['CORS_SUPPORTS_CREDENTIALS'],
                  "max_age": app.config['CORS_MAX_AGE']
              }
-         },
-         origins=app.config['CORS_ORIGINS'],
-         supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS']
+         }
     )
     
     # Enhanced request logging middleware
@@ -149,6 +148,7 @@ def create_app(config_name='default'):
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
     app.register_blueprint(tenant_bp, url_prefix='/api/tenant')
+    app.register_blueprint(tenant_data_bp, url_prefix='/api/tenant-data')
     logger.info("Blueprints registered successfully")
     
     # Health check endpoint
