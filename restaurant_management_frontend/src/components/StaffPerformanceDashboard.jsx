@@ -19,10 +19,16 @@ const API_BASE_URL = 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const StaffPerformanceDashboard = () => {
-  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  // Set default dateRange: from = midnight (00:00:00) in America/Chicago, to = same day (today only)
+  const chicagoTz = 'America/Chicago';
+  const now = new Date();
+  const chicagoMidnight = new Date(now.toLocaleString('en-US', { timeZone: chicagoTz }));
+  chicagoMidnight.setHours(0, 0, 0, 0);
+  const [dateRange, setDateRange] = useState({ from: chicagoMidnight, to: chicagoMidnight });
   const [selectedChefs, setSelectedChefs] = useState(['all']);
   const [tempSelectedChefs, setTempSelectedChefs] = useState(['all']);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
+  const [chefList, setChefList] = useState([]);
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching - only depends on dateRange now
@@ -30,6 +36,24 @@ export const StaffPerformanceDashboard = () => {
     start_date: dateRange.from?.toISOString(),
     end_date: dateRange.to?.toISOString()
   });
+
+  // Fetch chef list on mount
+  useEffect(() => {
+    const fetchChefs = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/dashboard/chefs`, { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          setChefList(data);
+        } else {
+          showError('Failed to load chef list');
+        }
+      } catch (err) {
+        showError('Failed to load chef list', err.message || String(err));
+      }
+    };
+    fetchChefs();
+  }, [showError]);
 
   // Show error toast if API call fails
   useEffect(() => {
@@ -96,22 +120,29 @@ export const StaffPerformanceDashboard = () => {
     setTempSelectedChefs(newSelection.length === 0 ? ['all'] : newSelection);
   };
 
-  // Filter data based on selected chefs - this is now a local filter
+  // Filter data based on selected chefs - now uses chefList for filter
   const filteredChefSummary = useMemo(() => {
     if (!performanceData?.chef_summary) return [];
-    if (selectedChefs.includes('all')) return performanceData.chef_summary;
-    return performanceData.chef_summary.filter(chef => 
-      selectedChefs.includes(chef.id.toString())
-    );
-  }, [performanceData, selectedChefs]);
+    if (selectedChefs.includes('all')) {
+      // Show all chefs from chefList, merging with summary if available
+      return chefList.map(chef => {
+        const summary = performanceData.chef_summary.find(c => c.id === chef.id);
+        return summary ? summary : { id: chef.id, name: chef.name, total_revenue: 0, total_sales: 0 };
+      });
+    }
+    return chefList
+      .filter(chef => selectedChefs.includes(chef.id.toString()))
+      .map(chef => {
+        const summary = performanceData.chef_summary.find(c => c.id === chef.id);
+        return summary ? summary : { id: chef.id, name: chef.name, total_revenue: 0, total_sales: 0 };
+      });
+  }, [performanceData, selectedChefs, chefList]);
 
-  // Filter performance data based on selected chefs
+  // For Individual Performance Details, use the new grouped chef_performance structure
   const filteredChefPerformance = useMemo(() => {
     if (!performanceData?.chef_performance) return [];
     if (selectedChefs.includes('all')) return performanceData.chef_performance;
-    return performanceData.chef_performance.filter(chef => 
-      selectedChefs.includes(performanceData.chef_summary.find(c => c.name === chef.chef_name)?.id.toString())
-    );
+    return performanceData.chef_performance.filter(chef => selectedChefs.includes(chef.chef_id.toString()));
   }, [performanceData, selectedChefs]);
 
   const handleExport = async (format) => {
@@ -244,7 +275,7 @@ export const StaffPerformanceDashboard = () => {
                       />
                       <label htmlFor="all" className="font-medium w-full cursor-pointer">All Staff Members</label>
                     </div>
-                    {performanceData?.chef_summary?.map(chef => (
+                    {chefList.map(chef => (
                       <div 
                         key={chef.id}
                         className={cn(
@@ -502,7 +533,7 @@ export const StaffPerformanceDashboard = () => {
                 <div key={index}>
                   <h4 className="font-medium text-lg mb-4">{chef.chef_name}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {chef.dishes?.map((dish, dishIndex) => (
+                    {chef.dishes.map((dish, dishIndex) => (
                       <div key={dishIndex} className="p-4 border rounded-lg">
                         <h5 className="font-medium">{dish.item_name}</h5>
                         <p className="text-sm text-gray-500">{dish.category}</p>

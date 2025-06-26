@@ -16,7 +16,12 @@ import { Input } from '@/components/ui/input.jsx';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const SalesAnalyticsDashboard = () => {
-  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  // Set default dateRange: from = midnight (00:00:00) in America/Chicago, to = null
+  const chicagoTz = 'America/Chicago';
+  const now = new Date();
+  const chicagoMidnight = new Date(now.toLocaleString('en-US', { timeZone: chicagoTz }));
+  chicagoMidnight.setHours(0, 0, 0, 0);
+  const [dateRange, setDateRange] = useState({ from: chicagoMidnight, to: null });
   const [selectedCategories, setSelectedCategories] = useState(['all']);
   const [tempSelectedCategories, setTempSelectedCategories] = useState(['all']);
   const [categories, setCategories] = useState([]);
@@ -26,8 +31,9 @@ export const SalesAnalyticsDashboard = () => {
 
   // Use API hooks for data fetching with caching
   const { data: salesData, loading, error, refresh } = useApiData('/dashboard/sales-summary', {
-    start_date: dateRange.from?.toISOString(),
-    end_date: dateRange.to?.toISOString(),
+    start_date: dateRange.from ? dateRange.from.toISOString() : null,
+    end_date: dateRange.to ? dateRange.to.toISOString() : null,
+    category: selectedCategories.includes('all') ? 'all' : selectedCategories.join(',')
   });
   
   const { data: inventoryData } = useApiData('/inventory/', []);

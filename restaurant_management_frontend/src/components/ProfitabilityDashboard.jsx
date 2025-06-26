@@ -12,12 +12,21 @@ import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 const API_BASE_URL = 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
+// Set default dateRange: from = midnight (00:00:00) in America/Chicago, to = same day (today only)
+const chicagoTz = 'America/Chicago';
+const now = new Date();
+const chicagoMidnight = new Date(now.toLocaleString('en-US', { timeZone: chicagoTz }));
+chicagoMidnight.setHours(0, 0, 0, 0);
+
 export const ProfitabilityDashboard = () => {
-  const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [dateRange, setDateRange] = useState({ from: chicagoMidnight, to: chicagoMidnight });
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: profitData, loading, error } = useApiData('/dashboard/profitability', [dateRange]);
+  const { data: profitData, loading, error } = useApiData('/dashboard/profitability', {
+    start_date: dateRange.from ? dateRange.from.toISOString() : null,
+    end_date: dateRange.to ? dateRange.to.toISOString() : null
+  });
 
   // Show error toast if API call fails
   useEffect(() => {

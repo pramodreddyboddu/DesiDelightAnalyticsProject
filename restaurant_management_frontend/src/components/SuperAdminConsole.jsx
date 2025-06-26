@@ -24,6 +24,7 @@ import { TenantManagement } from './TenantManagement.jsx';
 import { UserManagement } from './UserManagement.jsx';
 import { BillingManagement } from './BillingManagement.jsx';
 import { SystemSettings } from './SystemSettings.jsx';
+import DataSourceConfig from './DataSourceConfig.jsx';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -103,6 +104,19 @@ export const SuperAdminConsole = () => {
                   </Link>
                 );
               })}
+              {user?.is_admin && !user?.tenant_id && (
+                <Link
+                  to="/admin/data-source-config"
+                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                    location.pathname === '/admin/data-source-config'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <Building2 className="h-5 w-5 mr-3" />
+                  Data Source Config
+                </Link>
+              )}
             </nav>
           </div>
 
@@ -114,6 +128,9 @@ export const SuperAdminConsole = () => {
               <Route path="users" element={<UserManagement />} />
               <Route path="billing" element={<BillingManagement />} />
               <Route path="settings" element={<SystemSettings />} />
+              {user?.is_admin && !user?.tenant_id && (
+                <Route path="/admin/data-source-config" element={<DataSourceConfig />} />
+              )}
             </Routes>
           </div>
         </div>

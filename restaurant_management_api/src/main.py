@@ -22,6 +22,7 @@ from src.routes.inventory import inventory_bp
 from src.routes.ai import ai_bp
 from src.routes.tenant import tenant_bp
 from src.routes.tenant_data import tenant_data_bp
+from src.routes.clover import clover_bp
 from src.models import db
 from src.models.user import User
 from src.models.item import Item
@@ -79,7 +80,16 @@ def create_app(config_name='default'):
     
     # Create database tables and admin user
     with app.app_context():
-        db.create_all()
+        # Only create tables if they don't exist
+        try:
+            # Check if tables exist by trying to query a table
+            db.session.execute(text('SELECT 1 FROM user LIMIT 1'))
+            logger.info('Database tables already exist, skipping creation')
+        except Exception:
+            # Tables don't exist, create them
+            logger.info('Creating database tables...')
+            db.create_all()
+            logger.info('Database tables created successfully')
         
         # Create admin user if it doesn't exist
         admin = User.query.filter_by(username=app.config['ADMIN_USERNAME']).first()
@@ -147,6 +157,7 @@ def create_app(config_name='default'):
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
     app.register_blueprint(ai_bp, url_prefix='/api/ai')
+    app.register_blueprint(clover_bp, url_prefix='/api/clover')
     app.register_blueprint(tenant_bp, url_prefix='/api/tenant')
     app.register_blueprint(tenant_data_bp, url_prefix='/api/tenant-data')
     logger.info("Blueprints registered successfully")
@@ -161,20 +172,23 @@ def create_app(config_name='default'):
         }), 200
     
     # Health check endpoint for monitoring
-    @app.route('/health')
+    @app.route('/api/health', methods=['GET'])
     def health_check():
+        """Health check endpoint for monitoring"""
         try:
-            # Check database connection using SQLAlchemy 2.0 compatible syntax
+            # Check database connection using proper SQLAlchemy syntax
             db.session.execute(text('SELECT 1'))
+            
             return jsonify({
                 'status': 'healthy',
+                'timestamp': datetime.utcnow().isoformat(),
                 'database': 'connected',
-                'timestamp': str(datetime.now())
+                'version': '1.0.0'
             }), 200
         except Exception as e:
-            logger.error(f"Health check failed: {str(e)}")
             return jsonify({
                 'status': 'unhealthy',
+                'timestamp': datetime.utcnow().isoformat(),
                 'database': 'disconnected',
                 'error': str(e)
             }), 500

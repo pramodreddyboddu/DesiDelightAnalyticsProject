@@ -14,6 +14,7 @@ from .category import Category
 from .uncategorized_item import UncategorizedItem
 from .file_upload import FileUpload
 from .tenant import Tenant
+from .data_source_config import DataSourceConfig
 
 # Export models
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     'Category',
     'UncategorizedItem',
     'FileUpload',
-    'Tenant'
+    'Tenant',
+    'DataSourceConfig'
 ] 

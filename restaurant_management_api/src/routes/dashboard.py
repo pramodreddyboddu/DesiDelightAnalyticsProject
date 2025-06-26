@@ -1,25 +1,31 @@
 from flask import Blueprint, request, jsonify
 from ..models import db, Sale, Expense, Item, Chef, ChefDishMapping, UncategorizedItem, FileUpload
 from ..routes.auth import login_required
+from ..services.dashboard_service import DashboardService
 from sqlalchemy import func, and_, or_
 from datetime import datetime, timedelta
 import pandas as pd
 import logging
+from src.models.data_source_config import DataSourceConfig
+from flask import current_app
+import pytz
 
 dashboard_bp = Blueprint('dashboard', __name__)
+dashboard_service = DashboardService()
 
-def parse_date(date_str):
-    """Parse date string with better error handling and timezone support"""
+def parse_date(date_str, is_end=False):
     if not date_str:
         return None
     try:
-        # Handle ISO format with 'Z' timezone
-        if date_str.endswith('Z'):
-            date_str = date_str.replace('Z', '+00:00')
-        # Handle ISO format without timezone
-        elif '+' not in date_str and '-' not in date_str[-6:]:
-            date_str = f"{date_str}+00:00"
-        return datetime.fromisoformat(date_str)
+        central = pytz.timezone('America/Chicago')
+        # Use only the date part, ignore time and timezone info
+        date_only = date_str[:10]  # 'YYYY-MM-DD'
+        dt = datetime.strptime(date_only, '%Y-%m-%d')
+        dt = central.localize(dt)
+        if is_end:
+            return dt.replace(hour=23, minute=59, second=59, microsecond=999000)
+        else:
+            return dt.replace(hour=0, minute=0, second=0, microsecond=0)
     except ValueError as e:
         logging.error(f"Error parsing date {date_str}: {str(e)}")
         return None
@@ -29,112 +35,24 @@ def parse_date(date_str):
 def get_sales_summary():
     try:
         # Get query parameters
-        start_date = parse_date(request.args.get('start_date'))
-        end_date = parse_date(request.args.get('end_date'))
+        start_date_raw = request.args.get('start_date')
+        end_date_raw = request.args.get('end_date')
+        start_date = parse_date(start_date_raw)
+        end_date = parse_date(end_date_raw, is_end=True)
+        if start_date and not end_date:
+            # If end_date is blank, default to end of start_date
+            end_date = parse_date(start_date_raw, is_end=True)
         category = request.args.get('category')
         
         # Debug logging
-        logging.info(f"Sales summary request - start_date: {request.args.get('start_date')}, parsed: {start_date}")
-        logging.info(f"Sales summary request - end_date: {request.args.get('end_date')}, parsed: {end_date}")
+        logging.info(f"Sales summary request - start_date: {start_date_raw}, parsed: {start_date}")
+        logging.info(f"Sales summary request - end_date: {end_date_raw}, parsed: {end_date}")
         logging.info(f"Sales summary request - category: {category}")
         
-        # Build base query
-        query = db.session.query(Sale).join(Item, Sale.item_id == Item.id)
+        # Use dashboard service to get sales data from configured source
+        sales_data = dashboard_service.get_sales_summary(start_date, end_date, category)
         
-        # Apply filters
-        if start_date:
-            query = query.filter(Sale.line_item_date >= start_date)
-        
-        if end_date:
-            query = query.filter(Sale.line_item_date <= end_date)
-        
-        if category and category != 'all':
-            query = query.filter(Item.category == category)
-        
-        # Get total revenue
-        total_revenue = query.with_entities(func.sum(Sale.total_revenue)).scalar() or 0
-        
-        # Get unique order count
-        unique_order_count = query.with_entities(func.count(func.distinct(Sale.order_id))).scalar() or 0
-        
-        # Get category-wise breakdown
-        category_breakdown = db.session.query(
-            Item.category,
-            func.sum(Sale.total_revenue).label('revenue'),
-            func.count(Sale.id).label('count')
-        ).join(Item, Sale.item_id == Item.id)
-        
-        if start_date:
-            category_breakdown = category_breakdown.filter(Sale.line_item_date >= start_date)
-        if end_date:
-            category_breakdown = category_breakdown.filter(Sale.line_item_date <= end_date)
-        
-        category_breakdown = category_breakdown.group_by(Item.category).all()
-        
-        # Get top selling items
-        top_items = db.session.query(
-            Item.name,
-            Item.category,
-            func.sum(Sale.total_revenue).label('revenue'),
-            func.count(Sale.id).label('count')
-        ).join(Item, Sale.item_id == Item.id)
-        
-        if start_date:
-            top_items = top_items.filter(Sale.line_item_date >= start_date)
-        if end_date:
-            top_items = top_items.filter(Sale.line_item_date <= end_date)
-        if category and category != 'all':
-            top_items = top_items.filter(Item.category == category)
-        
-        top_items = top_items.group_by(Item.id, Item.name, Item.category)\
-                            .order_by(func.sum(Sale.total_revenue).desc())\
-                            .limit(10).all()
-        
-        # Get daily sales trend
-        daily_sales = db.session.query(
-            func.date(Sale.line_item_date).label('date'),
-            func.sum(Sale.total_revenue).label('revenue')
-        ).join(Item, Sale.item_id == Item.id)
-        
-        if start_date:
-            daily_sales = daily_sales.filter(Sale.line_item_date >= start_date)
-        if end_date:
-            daily_sales = daily_sales.filter(Sale.line_item_date <= end_date)
-        if category and category != 'all':
-            daily_sales = daily_sales.filter(Item.category == category)
-        
-        daily_sales = daily_sales.group_by(func.date(Sale.line_item_date))\
-                                .order_by(func.date(Sale.line_item_date)).all()
-        
-        # Format the response
-        return jsonify({
-            'total_revenue': float(total_revenue),
-            'total_transactions': unique_order_count,
-            'category_breakdown': [
-                {
-                    'category': cat,
-                    'revenue': float(rev) if rev is not None else 0,
-                    'count': count
-                }
-                for cat, rev, count in category_breakdown
-            ],
-            'top_items': [
-                {
-                    'name': name,
-                    'category': cat,
-                    'revenue': float(rev) if rev is not None else 0,
-                    'count': count
-                }
-                for name, cat, rev, count in top_items
-            ],
-            'daily_sales': [
-                {
-                    'date': date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date) if date else None,
-                    'revenue': float(rev) if rev is not None else 0
-                }
-                for date, rev in daily_sales
-            ]
-        }), 200
+        return jsonify(sales_data), 200
         
     except Exception as e:
         logging.error(f"Error in sales summary: {str(e)}")
@@ -146,7 +64,7 @@ def get_chef_performance():
     try:
         # Get query parameters
         start_date = parse_date(request.args.get('start_date'))
-        end_date = parse_date(request.args.get('end_date'))
+        end_date = parse_date(request.args.get('end_date'), is_end=True)
         chef_ids = request.args.get('chef_ids')
         
         # Debug logging
@@ -154,100 +72,10 @@ def get_chef_performance():
         logging.info(f"Chef performance request - end_date: {request.args.get('end_date')}, parsed: {end_date}")
         logging.info(f"Chef performance request - chef_ids: {chef_ids}")
         
-        # Build base query for chef performance
-        query = db.session.query(
-            Chef.name.label('chef_name'),
-            Item.name.label('item_name'),
-            Item.category,
-            func.sum(Sale.total_revenue).label('revenue'),
-            func.count(Sale.id).label('count')
-        ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)\
-         .join(Item, ChefDishMapping.item_id == Item.id)\
-         .join(Sale, Item.id == Sale.item_id)
+        # Use dashboard service to get chef performance data
+        chef_data = dashboard_service.get_chef_performance_data(start_date, end_date, chef_ids)
         
-        # Apply filters
-        if start_date:
-            query = query.filter(Sale.line_item_date >= start_date)
-        
-        if end_date:
-            query = query.filter(Sale.line_item_date <= end_date)
-        
-        if chef_ids and chef_ids != 'all':
-            try:
-                chef_id_list = [int(id_str) for id_str in chef_ids.split(',')]
-                query = query.filter(Chef.id.in_(chef_id_list))
-            except ValueError:
-                logging.error(f"Invalid chef_ids format: {chef_ids}")
-                return jsonify({'error': 'Invalid chef_ids format'}), 400
-        
-        # Group by chef and item
-        chef_performance = query.group_by(Chef.id, Chef.name, Item.id, Item.name, Item.category).all()
-        
-        # Get chef summary with the same filters
-        chef_summary = db.session.query(
-            Chef.id,
-            Chef.name,
-            func.sum(Sale.total_revenue).label('total_revenue'),
-            func.count(Sale.id).label('total_sales')
-        ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)\
-         .join(Item, ChefDishMapping.item_id == Item.id)\
-         .join(Sale, Item.id == Sale.item_id)
-        
-        # Apply the same filters to summary
-        if start_date:
-            chef_summary = chef_summary.filter(Sale.line_item_date >= start_date)
-        if end_date:
-            chef_summary = chef_summary.filter(Sale.line_item_date <= end_date)
-        if chef_ids and chef_ids != 'all':
-            chef_summary = chef_summary.filter(Chef.id.in_(chef_id_list))
-        
-        chef_summary = chef_summary.group_by(Chef.id, Chef.name)\
-                                  .order_by(func.sum(Sale.total_revenue).desc()).all()
-        
-        # Debug logging for query results
-        logging.info(f"Chef summary results count: {len(chef_summary)}")
-        for chef in chef_summary:
-            logging.info(f"Chef: {chef.name}, Revenue: {chef.total_revenue}, Sales: {chef.total_sales}")
-        
-        # Format response
-        performance_data = {}
-        for perf in chef_performance:
-            chef_name = perf.chef_name
-            if chef_name not in performance_data:
-                performance_data[chef_name] = {
-                    'chef_name': chef_name,
-                    'dishes': [],
-                    'total_revenue': 0,
-                    'total_sales': 0
-                }
-            
-            try:
-                revenue = float(perf.revenue) if perf.revenue is not None else 0
-                count = int(perf.count) if perf.count is not None else 0
-                
-                performance_data[chef_name]['dishes'].append({
-                    'item_name': perf.item_name,
-                    'category': perf.category,
-                    'revenue': revenue,
-                    'count': count
-                })
-                performance_data[chef_name]['total_revenue'] += revenue
-                performance_data[chef_name]['total_sales'] += count
-            except (ValueError, TypeError) as e:
-                logging.error(f"Error processing performance data for {chef_name}: {str(e)}")
-                continue
-        
-        return jsonify({
-            'chef_summary': [
-                {
-                    'id': chef.id,
-                    'name': chef.name,
-                    'total_revenue': float(chef.total_revenue) if chef.total_revenue is not None else 0,
-                    'total_sales': int(chef.total_sales) if chef.total_sales is not None else 0
-                } for chef in chef_summary
-            ],
-            'chef_performance': list(performance_data.values())
-        }), 200
+        return jsonify(chef_data), 200
         
     except Exception as e:
         logging.error(f"Error in chef performance: {str(e)}")
@@ -259,266 +87,82 @@ def get_expenses_dashboard():
     try:
         # Get query parameters
         start_date = parse_date(request.args.get('start_date'))
-        end_date = parse_date(request.args.get('end_date'))
-        category = request.args.get('category')
+        end_date = parse_date(request.args.get('end_date'), is_end=True)
         
-        # Build base query
-        query = db.session.query(Expense)
+        # Debug logging
+        logging.info(f"Expenses request - start_date: {request.args.get('start_date')}, parsed: {start_date}")
+        logging.info(f"Expenses request - end_date: {request.args.get('end_date')}, parsed: {end_date}")
         
-        # Apply filters
-        if start_date:
-            query = query.filter(Expense.date >= start_date)
+        # Use dashboard service to get expenses data
+        expenses_data = dashboard_service.get_expenses_data(start_date, end_date)
         
-        if end_date:
-            query = query.filter(Expense.date <= end_date)
-        
-        if category and category != 'all':
-            query = query.filter(Expense.category == category)
-        
-        # Get total expenses
-        total_expenses = query.with_entities(func.sum(Expense.amount)).scalar() or 0
-        
-        # Get category-wise breakdown
-        category_breakdown = db.session.query(
-            Expense.category,
-            func.sum(Expense.amount).label('amount'),
-            func.count(Expense.id).label('count')
-        )
-        
-        if start_date:
-            category_breakdown = category_breakdown.filter(Expense.date >= start_date)
-        if end_date:
-            category_breakdown = category_breakdown.filter(Expense.date <= end_date)
-        
-        category_breakdown = category_breakdown.group_by(Expense.category).all()
-        
-        # Get vendor breakdown
-        vendor_breakdown = db.session.query(
-            Expense.vendor,
-            func.sum(Expense.amount).label('amount'),
-            func.count(Expense.id).label('count')
-        )
-        
-        if start_date:
-            vendor_breakdown = vendor_breakdown.filter(Expense.date >= start_date)
-        if end_date:
-            vendor_breakdown = vendor_breakdown.filter(Expense.date <= end_date)
-        if category and category != 'all':
-            vendor_breakdown = vendor_breakdown.filter(Expense.category == category)
-        
-        vendor_breakdown = vendor_breakdown.group_by(Expense.vendor)\
-                                         .order_by(func.sum(Expense.amount).desc())\
-                                         .limit(10).all()
-        
-        # Get daily expenses trend
-        daily_expenses = db.session.query(
-            Expense.date,
-            func.sum(Expense.amount).label('amount')
-        )
-        
-        if start_date:
-            daily_expenses = daily_expenses.filter(Expense.date >= start_date)
-        if end_date:
-            daily_expenses = daily_expenses.filter(Expense.date <= end_date)
-        if category and category != 'all':
-            daily_expenses = daily_expenses.filter(Expense.category == category)
-        
-        daily_expenses = daily_expenses.group_by(Expense.date)\
-                                     .order_by(Expense.date).all()
-        
-        try:
-            return jsonify({
-                'total_expenses': float(total_expenses),
-                'category_breakdown': [
-                    {
-                        'category': cat.category,
-                        'amount': float(cat.amount) if cat.amount is not None else 0,
-                        'count': cat.count
-                    } for cat in category_breakdown
-                ],
-                'vendor_breakdown': [
-                    {
-                        'vendor': vendor.vendor or 'Unknown',
-                        'amount': float(vendor.amount) if vendor.amount is not None else 0,
-                        'count': vendor.count
-                    } for vendor in vendor_breakdown
-                ],
-                'daily_trend': [
-                    {
-                        'date': day.date.isoformat(),
-                        'amount': float(day.amount) if day.amount is not None else 0
-                    } for day in daily_expenses
-                ]
-            }), 200
-        except (ValueError, TypeError) as e:
-            logging.error(f"Error formatting expense data: {str(e)}")
-            return jsonify({'error': 'Error formatting expense data'}), 500
+        return jsonify(expenses_data), 200
         
     except Exception as e:
         logging.error(f"Error in expenses dashboard: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@dashboard_bp.route('/profitability', methods=['GET'])
+@dashboard_bp.route('/overview', methods=['GET'])
 @login_required
-def get_profitability_dashboard():
+def get_overview():
     try:
         # Get query parameters
         start_date = parse_date(request.args.get('start_date'))
-        end_date = parse_date(request.args.get('end_date'))
-        
-        # Get sales by category
-        sales_query = db.session.query(
-            Item.category,
-            func.sum(Sale.total_revenue).label('revenue')
-        ).join(Item, Sale.item_id == Item.id)
-        
-        if start_date:
-            sales_query = sales_query.filter(Sale.line_item_date >= start_date)
-        if end_date:
-            sales_query = sales_query.filter(Sale.line_item_date <= end_date)
-        
-        sales_by_category = sales_query.group_by(Item.category).all()
-        
-        # Get expenses by category
-        expenses_query = db.session.query(
-            Expense.category,
-            func.sum(Expense.amount).label('amount')
-        )
-        
-        if start_date:
-            expenses_query = expenses_query.filter(Expense.date >= start_date.date())
-        if end_date:
-            expenses_query = expenses_query.filter(Expense.date <= end_date.date())
-        
-        expenses_by_category = expenses_query.group_by(Expense.category).all()
-        
-        # Calculate profitability
-        sales_dict = {}
-        for sale in sales_by_category:
-            try:
-                sales_dict[sale.category] = float(sale.revenue) if sale.revenue is not None else 0
-            except (ValueError, TypeError) as e:
-                logging.error(f"Error processing sales data for category {sale.category}: {str(e)}")
-                sales_dict[sale.category] = 0
-        
-        expenses_dict = {}
-        for exp in expenses_by_category:
-            try:
-                expenses_dict[exp.category] = float(exp.amount) if exp.amount is not None else 0
-            except (ValueError, TypeError) as e:
-                logging.error(f"Error processing expense data for category {exp.category}: {str(e)}")
-                expenses_dict[exp.category] = 0
-        
-        # Explicit mapping from inventory category to expense category
-        category_expense_map = {
-            "Breakfast": "Kitchen",
-            "Breakfast Combo": "Kitchen",
-            "Veg Appetizers": "Kitchen",
-            "Non-Veg Appetizers": "Kitchen",
-            "Curries (Veg & Non-Veg)": "Kitchen",
-            "Biryani's": "Kitchen",
-            "Breads": "Kitchen",
-            "Pulav's": "Kitchen",
-            "Meat Items": "Meat",
-            "Groceries": "Grocery",
-            "Kaara Snacks": "Grocery",
-            "Vegetables": "Vegetables",
-            "Flowers": "Grocery",
-            "Frozen": "Grocery",
-            "Snacks": "Grocery",
-            "SEASONAL": "Kitchen",
-            "DD Specials": "Kitchen",
-            "Chat Specials": "Kitchen",
-            "Evening Specials": "Kitchen",
-            "Indo Chinese": "Kitchen",
-            "Drinks": "Kitchen",
-            "Kitchen Stocking": "Kitchen",
-            "Deserts": "Kitchen",
-            "SPECIALS": "Kitchen",
-            "Parota Specials": "Kitchen",
-            "DAILY SPECIALS": "Kitchen",
-            "DD Weekend Delight": "Kitchen",
-            "DD Family Pack Combos": "Kitchen",
-            "Week End Specials": "Kitchen",
-            "Monday Specials": "Kitchen",
-            "Tuesday Specials": "Kitchen",
-            "Wednesday Specials": "Kitchen",
-            "Thursday Specials": "Kitchen",
-            "Friday Specials": "Kitchen",
-            "Saturday Specials": "Kitchen",
-            "MELA 2024": "Kitchen",
-            "Thali": "Kitchen",
-            "Thali Curries": "Kitchen",
-            "Sunday Specials": "Kitchen",
-            "Diwali Crackers": "Kitchen",
-            "Biryani Combo's": "Kitchen",
-            "Appetizer Box": "Kitchen",
-            "Kids Special": "Kitchen",
-            "Unlimited Biryani": "Kitchen",
-            "Roll's": "Kitchen",
-            "New Year": "Kitchen",
-            "Winter Special": "Kitchen",
-            "Chef's Special": "Kitchen",
-            "Unlimited Dosa": "Kitchen",
-            "Desi Burgers": "Kitchen",
-            "Mandi": "Kitchen"
-        }
-
-        profitability_data = []
-        total_sales = sum(sales_dict.values())
-        total_expenses = sum(expenses_dict.values())
-
-        # Group sales by expense category using explicit mapping
-        expense_category_sales = {}
-        for sales_category, sales_amount in sales_dict.items():
-            expense_category = category_expense_map.get(sales_category, 'Grocery')  # Default to Grocery if not mapped
-            if expense_category not in expense_category_sales:
-                expense_category_sales[expense_category] = 0
-            expense_category_sales[expense_category] += sales_amount
-
-        # Calculate profitability for each expense category
-        for expense_category, sales_amount in expense_category_sales.items():
-            expense_amount = expenses_dict.get(expense_category, 0)
-            profit = sales_amount - expense_amount
-            profit_margin = (profit / sales_amount * 100) if sales_amount > 0 else 0
-
-            profitability_data.append({
-                'category': expense_category,
-                'sales': sales_amount,
-                'expenses': expense_amount,
-                'profit': profit,
-                'profit_margin': profit_margin,
-                'sales_percentage': (sales_amount / total_sales * 100) if total_sales > 0 else 0,
-                'expense_percentage': (expense_amount / total_expenses * 100) if total_expenses > 0 else 0
-            })
-        
-        # Overall profitability
-        overall_profit = total_sales - total_expenses
-        overall_margin = (overall_profit / total_sales * 100) if total_sales > 0 else 0
-        
-        return jsonify({
-            'categories': profitability_data,
-            'total_sales': total_sales,
-            'total_expenses': total_expenses
-        }), 200
-        
+        end_date = parse_date(request.args.get('end_date'), is_end=True)
+        logging.info(f"Dashboard overview request - start_date: {start_date}, end_date: {end_date}")
+        overview = dashboard_service.get_dashboard_overview(start_date, end_date)
+        return jsonify(overview), 200
     except Exception as e:
-        logging.error(f"Error in profitability dashboard: {str(e)}")
+        logging.error(f"Error in dashboard overview: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@dashboard_bp.route('/staff-performance', methods=['GET'])
+@login_required
+def get_staff_performance():
+    try:
+        start_date = parse_date(request.args.get('start_date'))
+        end_date = parse_date(request.args.get('end_date'), is_end=True)
+        chef_ids = request.args.get('chef_ids')
+        logging.info(f"Staff performance request - start_date: {start_date}, end_date: {end_date}, chef_ids: {chef_ids}")
+        staff_perf = dashboard_service.get_chef_performance_data(start_date, end_date, chef_ids)
+        return jsonify(staff_perf), 200
+    except Exception as e:
+        logging.error(f"Error in staff performance: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@dashboard_bp.route('/profitability', methods=['GET'])
+@login_required
+def get_profitability():
+    try:
+        start_date = parse_date(request.args.get('start_date'))
+        end_date = parse_date(request.args.get('end_date'), is_end=True)
+        logging.info(f"Profitability request - start_date: {start_date}, end_date: {end_date}")
+        profitability = dashboard_service.get_profitability(start_date, end_date)
+        return jsonify(profitability), 200
+    except Exception as e:
+        logging.error(f"Error in profitability: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @dashboard_bp.route('/items/uncategorized', methods=['GET'])
 @login_required
 def get_uncategorized_items():
     try:
-        uncategorized = UncategorizedItem.query.filter_by(status='pending')\
-                                              .order_by(UncategorizedItem.frequency.desc()).all()
+        # Get uncategorized items from local database
+        uncategorized_items = UncategorizedItem.query.all()
+        
+        items_data = [{
+            'id': item.id,
+            'name': item.name,
+            'count': item.count,
+            'total_revenue': float(item.total_revenue) if item.total_revenue else 0
+        } for item in uncategorized_items]
         
         return jsonify({
-            'uncategorized_items': [item.to_dict() for item in uncategorized]
+            'uncategorized_items': items_data
         }), 200
         
     except Exception as e:
-        logging.error(f"Error fetching uncategorized items: {str(e)}")
+        logging.error(f"Error getting uncategorized items: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @dashboard_bp.route('/items/uncategorized/<int:item_id>/categorize', methods=['PUT'])
@@ -531,213 +175,268 @@ def categorize_item(item_id):
         if not category:
             return jsonify({'error': 'Category is required'}), 400
         
-        # Update uncategorized item
-        uncategorized = UncategorizedItem.query.get(item_id)
-        if not uncategorized:
-            return jsonify({'error': 'Uncategorized item not found'}), 404
+        # Get the uncategorized item
+        uncategorized_item = UncategorizedItem.query.get(item_id)
+        if not uncategorized_item:
+            return jsonify({'error': 'Item not found'}), 404
         
-        uncategorized.status = 'categorized'
-        uncategorized.suggested_category = category
+        # Create or update the item in the main inventory
+        existing_item = Item.query.filter_by(name=uncategorized_item.name).first()
         
-        # Update or create actual item
-        item = Item.query.filter_by(name=uncategorized.item_name).first()
-        if item:
-            item.category = category
+        if existing_item:
+            # Update existing item
+            existing_item.category = category
+            existing_item.updated_at = datetime.utcnow()
         else:
-            item = Item(
-                name=uncategorized.item_name,
+            # Create new item
+            new_item = Item(
+                name=uncategorized_item.name,
                 category=category,
-                clover_id=f"MANUAL_{uncategorized.item_name}",  # Generate a unique clover_id
-                price=0.0  # Default price
+                price=0.0,  # Default price
+                quantity=0,  # Default quantity
+                is_active=True
             )
-            db.session.add(item)
+            db.session.add(new_item)
         
+        # Delete the uncategorized item
+        db.session.delete(uncategorized_item)
         db.session.commit()
         
-        return jsonify({
-            'message': 'Item categorized successfully',
-            'item': item.to_dict()
-        }), 200
+        return jsonify({'message': 'Item categorized successfully'}), 200
         
     except Exception as e:
-        db.session.rollback()
         logging.error(f"Error categorizing item: {str(e)}")
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @dashboard_bp.route('/recent-activity', methods=['GET'])
 @login_required
 def get_recent_activity():
     try:
-        # Get recent file uploads
-        recent_uploads = db.session.query(FileUpload)\
-            .order_by(FileUpload.upload_date.desc())\
-            .limit(5).all()
-        
-        # Get recent uncategorized items
-        recent_uncategorized = db.session.query(UncategorizedItem)\
-            .filter_by(status='pending')\
-            .order_by(UncategorizedItem.created_at.desc())\
-            .limit(5).all()
-        
-        # Format activities
+        # Get recent activity from various sources
         activities = []
         
-        # Add file upload activities
-        for upload in recent_uploads:
+        # Recent sales (from configured source)
+        sales_data = dashboard_service.get_sales_summary()
+        if sales_data.get('total_transactions', 0) > 0:
             activities.append({
-                'type': 'upload',
-                'message': f"{upload.file_type.title()} data uploaded",
-                'timestamp': upload.upload_date,
-                'status': 'success'
+                'type': 'sales',
+                'message': f"{sales_data['total_transactions']} transactions processed",
+                'timestamp': datetime.now().isoformat(),
+                'value': sales_data['total_revenue']
             })
         
-        # Add uncategorized items activities
-        for item in recent_uncategorized:
+        # Recent expenses (from local database)
+        expenses_data = dashboard_service.get_expenses_data()
+        if expenses_data.get('expense_count', 0) > 0:
             activities.append({
-                'type': 'uncategorized',
-                'message': f"New item '{item.item_name}' needs categorization",
-                'timestamp': item.created_at,
-                'status': 'warning'
+                'type': 'expenses',
+                'message': f"{expenses_data['expense_count']} expenses recorded",
+                'timestamp': datetime.now().isoformat(),
+                'value': expenses_data['total_expenses']
             })
         
-        # Sort activities by timestamp
+        # Recent inventory updates (from configured source)
+        inventory_data = dashboard_service.get_inventory_data()
+        if inventory_data.get('total', 0) > 0:
+            activities.append({
+                'type': 'inventory',
+                'message': f"{inventory_data['total']} items in inventory",
+                'timestamp': datetime.now().isoformat(),
+                'value': inventory_data['total']
+            })
+        
+        # Sort by timestamp (most recent first)
         activities.sort(key=lambda x: x['timestamp'], reverse=True)
         
         return jsonify({
-            'activities': activities
+            'activities': activities[:10]  # Return last 10 activities
         }), 200
         
     except Exception as e:
-        logging.error(f"Error fetching recent activity: {str(e)}")
+        logging.error(f"Error getting recent activity: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @dashboard_bp.route('/quick-actions', methods=['GET'])
 @login_required
 def get_quick_actions():
     try:
-        # Get counts for quick action status
-        uncategorized_count = db.session.query(func.count(UncategorizedItem.id))\
-            .filter_by(status='pending').scalar()
+        # Get quick actions based on current data state
+        actions = []
         
-        # Get recent file uploads
-        last_upload = db.session.query(FileUpload)\
-            .order_by(FileUpload.upload_date.desc())\
-            .first()
+        # Check for uncategorized items
+        uncategorized_count = UncategorizedItem.query.count()
+        if uncategorized_count > 0:
+            actions.append({
+                'id': 'categorize',
+                'title': 'Categorize Items',
+                'description': f'{uncategorized_count} items need categorization',
+                'action': 'navigate_to_inventory',
+                'priority': 'high'
+            })
         
-        # Format quick actions
-        actions = [
+        # Check data source status
+        data_source_status = dashboard_service.get_data_source_status()
+        for data_type, status in data_source_status.items():
+            if status['status'] == 'error':
+                actions.append({
+                    'id': f'fix_{data_type}_connection',
+                    'title': f'Fix {data_type.title()} Connection',
+                    'description': f'Connection to {status["source"]} data source failed',
+                    'action': 'navigate_to_clover',
+                    'priority': 'high'
+                })
+        
+        # Add default actions
+        actions.extend([
             {
                 'id': 'upload',
-                'label': 'Upload Sales & Inventory Data',
-                'icon': 'upload',
-                'status': 'available',
-                'last_updated': last_upload.upload_date if last_upload else None
+                'title': 'Upload Data',
+                'description': 'Upload new sales, inventory, or expense data',
+                'action': 'navigate_to_admin',
+                'priority': 'medium'
             },
             {
                 'id': 'report',
-                'label': 'Generate Business Report',
-                'icon': 'file-text',
-                'status': 'available',
-                'last_updated': None
-            },
-            {
-                'id': 'staff',
-                'label': 'View Staff Performance',
-                'icon': 'users',
-                'status': 'available',
-                'last_updated': None
-            },
-            {
-                'id': 'categorize',
-                'label': 'Categorize Items',
-                'icon': 'tag',
-                'status': 'warning' if uncategorized_count > 0 else 'available',
-                'count': uncategorized_count
+                'title': 'Generate Report',
+                'description': 'Create detailed reports and analytics',
+                'action': 'navigate_to_reports',
+                'priority': 'medium'
             }
-        ]
+        ])
         
         return jsonify({
             'actions': actions
         }), 200
         
     except Exception as e:
-        logging.error(f"Error fetching quick actions: {str(e)}")
+        logging.error(f"Error getting quick actions: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @dashboard_bp.route('/stats', methods=['GET'])
 @login_required
 def get_dashboard_stats():
-    """Get restaurant-specific statistics for tenant dashboard"""
     try:
-        # Get today's date
-        today = datetime.now().date()
-        yesterday = today - timedelta(days=1)
+        # Get stats from configured data sources
+        sales_data = dashboard_service.get_sales_summary()
+        inventory_data = dashboard_service.get_inventory_data()
+        expenses_data = dashboard_service.get_expenses_data()
         
-        # Get today's sales
-        today_sales = db.session.query(func.sum(Sale.total_revenue)).filter(
-            func.date(Sale.line_item_date) == today
-        ).scalar() or 0
+        # Get chef mapping count from local database
+        chef_mapping_count = ChefDishMapping.query.count()
         
-        # Get yesterday's sales for comparison
-        yesterday_sales = db.session.query(func.sum(Sale.total_revenue)).filter(
-            func.date(Sale.line_item_date) == yesterday
-        ).scalar() or 0
+        # Get data source status
+        data_source_status = dashboard_service.get_data_source_status()
         
-        # Calculate sales growth
-        sales_growth = 0
-        if yesterday_sales > 0:
-            sales_growth = ((today_sales - yesterday_sales) / yesterday_sales) * 100
-        
-        # Get today's orders
-        today_orders = db.session.query(func.count(func.distinct(Sale.order_id))).filter(
-            func.date(Sale.line_item_date) == today
-        ).scalar() or 0
-        
-        # Get average order value
-        avg_order_value = 0
-        if today_orders > 0:
-            avg_order_value = today_sales / today_orders
-        
-        # Get staff statistics (placeholder - would need actual staff data)
-        active_staff = 5  # Placeholder
-        total_staff = 8   # Placeholder
-        
-        # Get low stock items
-        low_stock_items = db.session.query(func.count(Item.id)).filter(
-            Item.quantity <= Item.reorder_point
-        ).scalar() or 0
-        
-        # Get recent activity (placeholder)
-        recent_activity = [
-            {
-                'description': 'New order received: #ORD-001',
-                'timestamp': '2024-01-15 14:30:00',
-                'type': 'order'
+        stats = {
+            'sales': {
+                'count': sales_data.get('total_transactions', 0),
+                'last_updated': datetime.now().isoformat(),
+                'source': data_source_status.get('sales', {}).get('source', 'unknown'),
+                'status': data_source_status.get('sales', {}).get('status', 'unknown')
             },
-            {
-                'description': 'Inventory updated: 50 items',
-                'timestamp': '2024-01-15 12:15:00',
-                'type': 'inventory'
+            'inventory': {
+                'count': inventory_data.get('total', 0),
+                'last_updated': datetime.now().isoformat(),
+                'source': data_source_status.get('inventory', {}).get('source', 'unknown'),
+                'status': data_source_status.get('inventory', {}).get('status', 'unknown')
             },
-            {
-                'description': 'Sales report generated',
-                'timestamp': '2024-01-15 10:00:00',
-                'type': 'report'
+            'expenses': {
+                'count': expenses_data.get('expense_count', 0),
+                'last_updated': datetime.now().isoformat(),
+                'source': 'local',
+                'status': 'connected'
+            },
+            'chef_mapping': {
+                'count': chef_mapping_count,
+                'last_updated': datetime.now().isoformat(),
+                'source': 'local',
+                'status': 'connected'
             }
-        ]
+        }
         
-        return jsonify({
-            'today_sales': float(today_sales),
-            'sales_growth': round(sales_growth, 1),
-            'today_orders': today_orders,
-            'avg_order_value': round(avg_order_value, 2),
-            'active_staff': active_staff,
-            'total_staff': total_staff,
-            'low_stock_items': low_stock_items,
-            'recent_activity': recent_activity
-        })
+        return jsonify(stats), 200
         
     except Exception as e:
         logging.error(f"Error getting dashboard stats: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@dashboard_bp.route('/data-source-config', methods=['GET', 'PUT'])
+@login_required
+def manage_data_source_config():
+    from flask import session
+    try:
+        user = session.get('username', 'unknown')
+        is_superadmin = session.get('is_admin', False) and not session.get('tenant_id')
+        if request.method == 'GET':
+            # Return current configuration from DB if available
+            configs = DataSourceConfig.query.all()
+            if configs:
+                data_sources = {f"{c.data_type}": c.source for c in configs if c.tenant_id is None}
+            else:
+                data_sources = dashboard_service.data_sources
+            return jsonify({
+                'data_sources': data_sources,
+                'status': dashboard_service.get_data_source_status()
+            }), 200
+        else:
+            # Only superadmins can update
+            if not is_superadmin:
+                return jsonify({'error': 'Only superadmins can update data source config.'}), 403
+            data = request.get_json()
+            new_config = data.get('data_sources', {})
+            valid_sources = ['clover', 'local']
+            valid_types = ['sales', 'inventory']
+            for data_type, source in new_config.items():
+                if data_type not in valid_types:
+                    return jsonify({'error': f'Invalid data type: {data_type}'}), 400
+                if source not in valid_sources:
+                    return jsonify({'error': f'Invalid data source: {source}'}), 400
+                # Upsert config in DB
+                config = DataSourceConfig.query.filter_by(tenant_id=None, data_type=data_type).first()
+                if config:
+                    config.source = source
+                    config.updated_by = user
+                    config.updated_at = datetime.utcnow()
+                else:
+                    config = DataSourceConfig(
+                        tenant_id=None,
+                        data_type=data_type,
+                        source=source,
+                        updated_by=user,
+                        updated_at=datetime.utcnow()
+                    )
+                    db.session.add(config)
+                current_app.logger.info(f"[AUDIT] Data source config updated: {data_type} -> {source} by {user}")
+            db.session.commit()
+            # Also update in-memory config for backward compatibility
+            dashboard_service.data_sources.update(new_config)
+            dashboard_service.clear_clover_cache()
+            return jsonify({
+                'message': 'Data source configuration updated successfully',
+                'data_sources': {f"{c.data_type}": c.source for c in DataSourceConfig.query.filter_by(tenant_id=None).all()}
+            }), 200
+    except Exception as e:
+        logging.error(f"Error managing data source config: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@dashboard_bp.route('/chefs', methods=['GET'])
+@login_required
+def get_chefs_list():
+    try:
+        # If multi-tenant, filter by tenant_id from session
+        from flask import session
+        tenant_id = session.get('tenant_id')
+        query = Chef.query.filter_by(is_active=True)
+        if tenant_id:
+            query = query.filter_by(tenant_id=tenant_id)
+        chefs = query.all()
+        return jsonify([
+            {'id': chef.id, 'name': chef.name, 'clover_id': chef.clover_id}
+            for chef in chefs
+        ]), 200
+    except Exception as e:
+        logging.error(f"Error fetching chef list: {str(e)}")
         return jsonify({'error': str(e)}), 500
 

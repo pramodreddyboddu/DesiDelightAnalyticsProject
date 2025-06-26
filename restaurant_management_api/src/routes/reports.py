@@ -1,72 +1,117 @@
 from flask import Blueprint, request, jsonify, make_response
 from ..models import db, Item, UncategorizedItem, Sale, Expense, Chef
 from ..routes.auth import login_required, admin_required
+from ..services.dashboard_service import DashboardService
 from sqlalchemy import func, and_, or_
 from datetime import datetime
 import pandas as pd
 import io
 import csv
+import logging
 
 reports_bp = Blueprint('reports', __name__)
+dashboard_service = DashboardService()
+
+def parse_date(date_str):
+    """Parse date string with better error handling"""
+    if not date_str:
+        return None
+    try:
+        # Handle ISO format with 'Z' timezone
+        if date_str.endswith('Z'):
+            date_str = date_str.replace('Z', '+00:00')
+        # Handle ISO format without timezone
+        elif '+' not in date_str and '-' not in date_str[-6:]:
+            date_str = f"{date_str}+00:00"
+        return datetime.fromisoformat(date_str)
+    except ValueError as e:
+        logging.error(f"Error parsing date {date_str}: {str(e)}")
+        return None
 
 @reports_bp.route('/reports/sales', methods=['GET'])
 @login_required
 def export_sales_report():
     try:
         # Get query parameters
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
+        start_date = parse_date(request.args.get('start_date'))
+        end_date = parse_date(request.args.get('end_date'))
         category = request.args.get('category')
         format_type = request.args.get('format', 'csv')  # csv, excel
         
-        # Build query
-        query = db.session.query(
-            Sale.line_item_date,
-            Sale.order_employee_name,
-            Item.name.label('item_name'),
-            Item.category,
-            Sale.quantity,
-            Sale.item_revenue,
-            Sale.modifiers_revenue,
-            Sale.total_revenue,
-            Sale.discounts,
-            Sale.tax_amount,
-            Sale.item_total_with_tax,
-            Sale.payment_state
-        ).join(Item, Sale.item_id == Item.id)
+        # Get sales data from configured source
+        data_source = dashboard_service.get_data_source('sales')
         
-        # Apply filters
-        if start_date:
-            start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            query = query.filter(Sale.line_item_date >= start_date)
-        
-        if end_date:
-            end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            query = query.filter(Sale.line_item_date <= end_date)
-        
-        if category and category != 'all':
-            query = query.filter(Item.category == category)
-        
-        # Execute query
-        results = query.order_by(Sale.line_item_date.desc()).all()
-        
-        # Convert to DataFrame
-        data = []
-        for row in results:
-            data.append({
-                'Date': row.line_item_date.strftime('%Y-%m-%d %H:%M:%S'),
-                'Employee': row.order_employee_name,
-                'Item Name': row.item_name,
-                'Category': row.category,
-                'Quantity': row.quantity,
-                'Item Revenue': row.item_revenue,
-                'Modifiers Revenue': row.modifiers_revenue,
-                'Total Revenue': row.total_revenue,
-                'Discounts': row.discounts,
-                'Tax Amount': row.tax_amount,
-                'Total with Tax': row.item_total_with_tax,
-                'Payment State': row.payment_state
-            })
+        if data_source == 'clover':
+            # Get sales data from Clover
+            sales_summary = dashboard_service.get_sales_summary(start_date, end_date, category)
+            
+            # For Clover data, we need to get the raw orders for detailed reporting
+            orders = dashboard_service.clover_service.get_orders(start_date, end_date)
+            
+            data = []
+            for order in orders:
+                line_items = order.get('lineItems', {}).get('elements', [])
+                for line_item in line_items:
+                    item = line_item.get('item', {})
+                    data.append({
+                        'Date': datetime.fromtimestamp(order['createdTime'] / 1000).strftime('%Y-%m-%d %H:%M:%S'),
+                        'Employee': order.get('employee', {}).get('name', 'Unknown'),
+                        'Item Name': item.get('name', 'Unknown'),
+                        'Category': item.get('categories', {}).get('elements', [{}])[0].get('name', 'Uncategorized'),
+                        'Quantity': line_item.get('quantity', 1),
+                        'Item Revenue': float(line_item.get('price', 0)) / 100,
+                        'Modifiers Revenue': 0,  # Clover doesn't separate modifiers in this way
+                        'Total Revenue': float(line_item.get('total', 0)) / 100,
+                        'Discounts': 0,  # Would need to calculate from order level
+                        'Tax Amount': 0,  # Would need to calculate from order level
+                        'Total with Tax': float(line_item.get('total', 0)) / 100,
+                        'Payment State': order.get('state', 'unknown')
+                    })
+        else:
+            # Use local database
+            query = db.session.query(
+                Sale.line_item_date,
+                Sale.order_employee_name,
+                Item.name.label('item_name'),
+                Item.category,
+                Sale.quantity,
+                Sale.item_revenue,
+                Sale.modifiers_revenue,
+                Sale.total_revenue,
+                Sale.discounts,
+                Sale.tax_amount,
+                Sale.item_total_with_tax,
+                Sale.payment_state
+            ).join(Item, Sale.item_id == Item.id)
+            
+            # Apply filters
+            if start_date:
+                query = query.filter(Sale.line_item_date >= start_date)
+            if end_date:
+                query = query.filter(Sale.line_item_date <= end_date)
+            if category and category != 'all':
+                query = query.filter(Item.category == category)
+            
+            # Execute query
+            results = query.order_by(Sale.line_item_date.desc()).all()
+            
+            # Convert to list of dictionaries
+            data = []
+            for row in results:
+                data.append({
+                    'Date': row.line_item_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    'Employee': row.order_employee_name,
+                    'Item Name': row.item_name,
+                    'Category': row.category,
+                    'Quantity': row.quantity,
+                    'Item Revenue': row.item_revenue,
+                    'Modifiers Revenue': row.modifiers_revenue,
+                    'Total Revenue': row.total_revenue,
+                    'Discounts': row.discounts,
+                    'Tax Amount': row.tax_amount,
+                    'Total with Tax': row.item_total_with_tax,
+                    'Payment State': row.payment_state
+                })
         
         df = pd.DataFrame(data)
         
@@ -92,6 +137,7 @@ def export_sales_report():
             return response
             
     except Exception as e:
+        logging.error(f"Error exporting sales report: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @reports_bp.route('/reports/profitability', methods=['GET'])
@@ -99,87 +145,36 @@ def export_sales_report():
 def export_profitability_report():
     try:
         # Get query parameters
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
+        start_date = parse_date(request.args.get('start_date'))
+        end_date = parse_date(request.args.get('end_date'))
         format_type = request.args.get('format', 'csv')
         
-        # Parse dates
-        if start_date:
-            start_date_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            start_date_d = start_date_dt.date()
-        else:
-            start_date_dt = None
-            start_date_d = None
-            
-        if end_date:
-            end_date_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            end_date_d = end_date_dt.date()
-        else:
-            end_date_dt = None
-            end_date_d = None
+        # Get sales data from configured source
+        sales_data = dashboard_service.get_sales_summary(start_date, end_date)
         
-        # Get sales by category
-        sales_query = db.session.query(
-            Item.category,
-            func.sum(Sale.total_revenue).label('revenue'),
-            func.count(Sale.id).label('count')
-        ).join(Item, Sale.item_id == Item.id)
+        # Get expenses data (always from local database)
+        expenses_data = dashboard_service.get_expenses_data(start_date, end_date)
         
-        if start_date_dt:
-            sales_query = sales_query.filter(Sale.line_item_date >= start_date_dt)
-        if end_date_dt:
-            sales_query = sales_query.filter(Sale.line_item_date <= end_date_dt)
-        
-        sales_by_category = sales_query.group_by(Item.category).all()
-        
-        # Get expenses by category
-        expenses_query = db.session.query(
-            Expense.category,
-            func.sum(Expense.amount).label('amount'),
-            func.count(Expense.id).label('count')
-        )
-        
-        if start_date_d:
-            expenses_query = expenses_query.filter(Expense.date >= start_date_d)
-        if end_date_d:
-            expenses_query = expenses_query.filter(Expense.date <= end_date_d)
-        
-        expenses_by_category = expenses_query.group_by(Expense.category).all()
-        
-        # Prepare data
-        sales_dict = {sale.category: {'revenue': float(sale.revenue), 'count': sale.count} for sale in sales_by_category}
-        expenses_dict = {exp.category: {'amount': float(exp.amount), 'count': exp.count} for exp in expenses_by_category}
-        
+        # Prepare data for export
         data = []
-        total_sales = sum(item['revenue'] for item in sales_dict.values())
         
-        for category in set(list(sales_dict.keys()) + list(expenses_dict.keys())):
-            sales_amount = sales_dict.get(category, {}).get('revenue', 0)
-            sales_count = sales_dict.get(category, {}).get('count', 0)
-            
-            # Find matching expenses
-            expenses_amount = 0
-            expenses_count = 0
-            
-            if category in expenses_dict:
-                expenses_amount = expenses_dict[category]['amount']
-                expenses_count = expenses_dict[category]['count']
-            elif 'Kitchen' in expenses_dict and category in ['Meat', 'Vegetables', 'Grocery', 'Uncategorized']:
-                # Allocate Kitchen expenses proportionally
-                kitchen_expenses = expenses_dict['Kitchen']['amount']
-                allocation_ratio = sales_amount / total_sales if total_sales > 0 else 0
-                expenses_amount = kitchen_expenses * allocation_ratio
-                expenses_count = expenses_dict['Kitchen']['count']
-            
+        # Get category breakdown from sales
+        sales_categories = {item['category']: item['revenue'] for item in sales_data.get('category_breakdown', [])}
+        expenses_categories = {item['category']: item['amount'] for item in expenses_data.get('category_breakdown', [])}
+        
+        # Combine categories
+        all_categories = set(list(sales_categories.keys()) + list(expenses_categories.keys()))
+        
+        for category in all_categories:
+            sales_amount = sales_categories.get(category, 0)
+            expenses_amount = expenses_categories.get(category, 0)
             profit = sales_amount - expenses_amount
             profit_margin = (profit / sales_amount * 100) if sales_amount > 0 else 0
             
             data.append({
                 'Category': category,
                 'Sales Revenue': sales_amount,
-                'Sales Count': sales_count,
                 'Expenses': expenses_amount,
-                'Expenses Count': expenses_count,
                 'Net Profit': profit,
                 'Profit Margin (%)': round(profit_margin, 2)
             })
@@ -208,6 +203,7 @@ def export_profitability_report():
             return response
             
     except Exception as e:
+        logging.error(f"Error exporting profitability report: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @reports_bp.route('/reports/chef-performance', methods=['GET'])
@@ -215,53 +211,22 @@ def export_profitability_report():
 def export_chef_performance_report():
     try:
         # Get query parameters
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        chef_ids = request.args.get('chef_ids')
+        start_date = parse_date(request.args.get('start_date'))
+        end_date = parse_date(request.args.get('end_date'))
         format_type = request.args.get('format', 'csv')
         
-        # Build query
-        query = db.session.query(
-            Chef.name.label('chef_name'),
-            Item.name.label('item_name'),
-            Item.category,
-            func.sum(Sale.total_revenue).label('revenue'),
-            func.count(Sale.id).label('count'),
-            func.avg(Sale.total_revenue).label('avg_revenue')
-        ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)\
-         .join(Item, ChefDishMapping.item_id == Item.id)\
-         .join(Sale, Item.id == Sale.item_id)
+        # Get chef performance data (always from local database)
+        chef_data = dashboard_service.get_chef_performance_data(start_date, end_date)
         
-        # Apply filters
-        if start_date:
-            start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            query = query.filter(Sale.line_item_date >= start_date)
-        
-        if end_date:
-            end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            query = query.filter(Sale.line_item_date <= end_date)
-            
-        if chef_ids and chef_ids != 'all':
-            try:
-                chef_id_list = [int(id_str) for id_str in chef_ids.split(',')]
-                query = query.filter(Chef.id.in_(chef_id_list))
-            except ValueError:
-                return jsonify({'error': 'Invalid chef_ids format'}), 400
-        
-        # Group and order
-        results = query.group_by(Chef.id, Chef.name, Item.id, Item.name, Item.category)\
-                      .order_by(Chef.name, func.sum(Sale.total_revenue).desc()).all()
-        
-        # Convert to DataFrame
+        # Prepare data for export
         data = []
-        for row in results:
+        for chef in chef_data:
             data.append({
-                'Chef Name': row.chef_name,
-                'Item Name': row.item_name,
-                'Category': row.category,
-                'Total Revenue': row.revenue,
-                'Sales Count': row.count,
-                'Average Revenue': round(row.avg_revenue, 2)
+                'Chef ID': chef['chef_id'],
+                'Chef Name': chef['chef_name'],
+                'Orders Handled': chef['orders_handled'],
+                'Total Revenue': chef['total_revenue'],
+                'Average Order Value': chef['avg_order_value']
             })
         
         df = pd.DataFrame(data)
@@ -270,7 +235,7 @@ def export_chef_performance_report():
             # Create Excel file
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name='Chef Performance', index=False)
+                df.to_excel(writer, sheet_name='Chef Performance Report', index=False)
             output.seek(0)
             
             response = make_response(output.getvalue())
@@ -288,20 +253,29 @@ def export_chef_performance_report():
             return response
             
     except Exception as e:
+        logging.error(f"Error exporting chef performance report: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @reports_bp.route('/items/uncategorized', methods=['GET'])
 @login_required
 def get_uncategorized_items():
     try:
-        uncategorized = UncategorizedItem.query.filter_by(status='pending')\
-                                              .order_by(UncategorizedItem.frequency.desc()).all()
+        # Get uncategorized items from local database
+        uncategorized_items = UncategorizedItem.query.all()
+        
+        items_data = [{
+            'id': item.id,
+            'name': item.name,
+            'count': item.count,
+            'total_revenue': float(item.total_revenue) if item.total_revenue else 0
+        } for item in uncategorized_items]
         
         return jsonify({
-            'uncategorized_items': [item.to_dict() for item in uncategorized]
+            'uncategorized_items': items_data
         }), 200
         
     except Exception as e:
+        logging.error(f"Error getting uncategorized items: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @reports_bp.route('/items/uncategorized/<int:item_id>/categorize', methods=['PUT'])
@@ -314,30 +288,40 @@ def categorize_item(item_id):
         if not category:
             return jsonify({'error': 'Category is required'}), 400
         
-        # Update uncategorized item
-        uncategorized = UncategorizedItem.query.get(item_id)
-        if not uncategorized:
-            return jsonify({'error': 'Uncategorized item not found'}), 404
+        # Get the uncategorized item
+        uncategorized_item = UncategorizedItem.query.get(item_id)
+        if not uncategorized_item:
+            return jsonify({'error': 'Item not found'}), 404
         
-        uncategorized.status = 'categorized'
-        uncategorized.suggested_category = category
+        # Create or update the item in the main inventory
+        existing_item = Item.query.filter_by(name=uncategorized_item.name).first()
         
-        # Update or create actual item
-        item = Item.query.filter_by(name=uncategorized.item_name).first()
-        if item:
-            item.category = category
+        if existing_item:
+            # Update existing item
+            existing_item.category = category
+            existing_item.quantity = (existing_item.quantity or 0) + uncategorized_item.count
         else:
-            item = Item(name=uncategorized.item_name, category=category)
-            db.session.add(item)
+            # Create new item
+            new_item = Item(
+                name=uncategorized_item.name,
+                category=category,
+                quantity=uncategorized_item.count,
+                price=0  # Default price, can be updated later
+            )
+            db.session.add(new_item)
         
+        # Delete the uncategorized item
+        db.session.delete(uncategorized_item)
         db.session.commit()
         
         return jsonify({
             'message': 'Item categorized successfully',
-            'item': item.to_dict()
+            'item_name': uncategorized_item.name,
+            'category': category
         }), 200
         
     except Exception as e:
+        logging.error(f"Error categorizing item: {str(e)}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 

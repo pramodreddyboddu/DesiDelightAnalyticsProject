@@ -4,89 +4,165 @@ from datetime import timedelta
 from tempfile import gettempdir
 
 # Load environment variables
-load_dotenv()
+# load_dotenv()  # Temporarily disabled due to .env file encoding issues
 
 class Config:
-    """Base configuration class with enhanced security settings."""
-    
-    # Base directory
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    
-    # Database configuration
-    DATABASE_DIR = os.path.join(BASE_DIR, 'database')
-    os.makedirs(DATABASE_DIR, exist_ok=True)
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(DATABASE_DIR, 'app.db')
+    """Base configuration class"""
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///restaurant_management.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Admin Configuration
-    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
-    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
-    
-    # Security Configuration
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your_default_secret_key_here')
-    SESSION_COOKIE_SECURE = False  # For local development
+    # Session configuration
+    SESSION_TYPE = 'filesystem'
+    SESSION_PERMANENT = True
+    PERMANENT_SESSION_LIFETIME = timedelta(days=1)
+    SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = None  # Allow cross-site requests for development
+    SESSION_COOKIE_SAMESITE = None
     SESSION_COOKIE_PATH = '/'
-    SESSION_COOKIE_DOMAIN = None  # Let Flask set domain automatically
-    SESSION_COOKIE_NAME = 'plateiq_session'  # Unique session name
-    SESSION_REFRESH_EACH_REQUEST = True  # Keep session alive
+    SESSION_COOKIE_DOMAIN = None
+    SESSION_COOKIE_NAME = 'plateiq_session'
+    SESSION_REFRESH_EACH_REQUEST = True
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'plateiq_'
     
-    # CORS Configuration
-    CORS_ORIGINS = ["http://localhost:5173"]  # Strict CORS origins
-    CORS_SUPPORTS_CREDENTIALS = True  # Allow credentials
-    CORS_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    CORS_ALLOW_HEADERS = ["Content-Type", "Authorization", "Cookie"]  # Added Cookie header
-    CORS_EXPOSE_HEADERS = ["Content-Type", "Authorization", "Set-Cookie"]  # Added Set-Cookie header
-    CORS_MAX_AGE = 600  # Cache preflight requests for 10 minutes
+    # CORS configuration
+    CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173']
+    CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With']
+    CORS_EXPOSE_HEADERS = ['Content-Type', 'Authorization']
+    CORS_SUPPORTS_CREDENTIALS = True
+    CORS_MAX_AGE = 3600
     
-    # Logging Configuration
-    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-    LOG_FILE = os.getenv('LOG_FILE', 'logs/app.log')
+    # Admin configuration
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME') or 'admin'
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin123'
     
-    # Rate Limiting Configuration
-    RATE_LIMIT_REQUESTS = int(os.getenv('RATE_LIMIT_REQUESTS', '100'))
-    RATE_LIMIT_WINDOW = int(os.getenv('RATE_LIMIT_WINDOW', '900'))  # 15 minutes
+    # Clover API configuration
+    CLOVER_MERCHANT_ID = os.environ.get('CLOVER_MERCHANT_ID') or ''
+    CLOVER_ACCESS_TOKEN = os.environ.get('CLOVER_ACCESS_TOKEN') or ''
+    CLOVER_API_BASE_URL = 'https://api.clover.com'
+    CLOVER_API_VERSION = 'v3'
     
-    # File Upload Configuration
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    UPLOAD_FOLDER = 'upload'
-    ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
+    # Data source configuration
+    DEFAULT_SALES_SOURCE = os.environ.get('DEFAULT_SALES_SOURCE') or 'clover'
+    DEFAULT_INVENTORY_SOURCE = os.environ.get('DEFAULT_INVENTORY_SOURCE') or 'clover'
+    DEFAULT_EXPENSES_SOURCE = 'local'  # Always local
+    DEFAULT_CHEF_MAPPING_SOURCE = 'local'  # Always local
     
-    # Session Configuration
-    SESSION_TYPE = 'filesystem'  # Use filesystem for development
-    SESSION_FILE_DIR = os.path.join(gettempdir(), 'plateiq_sessions')  # Dedicated session directory
-    os.makedirs(SESSION_FILE_DIR, exist_ok=True)  # Ensure directory exists
-    SESSION_PERMANENT = True
-    PERMANENT_SESSION_LIFETIME = timedelta(days=1)
+    # Cache configuration
+    CLOVER_CACHE_TTL = 600  # 10 minutes
+    DASHBOARD_CACHE_TTL = 300  # 5 minutes
     
     # Logging configuration
-    LOG_LEVEL = 'INFO'
+    LOG_LEVEL = os.environ.get('LOG_LEVEL') or 'INFO'
+    LOG_FILE = 'logs/app.log'
+    ERROR_LOG_FILE = 'logs/error.log'
+    
+    # File upload configuration
+    UPLOAD_FOLDER = 'uploads'
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
+    
+    # AI service configuration
+    AI_MODEL_PATH = 'models/sales_forecast_model.pkl'
+    AI_PREDICTION_DAYS = 7
+    
+    # Production settings
+    DEBUG = False
+    TESTING = False
+    
+    # Security settings
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600
+    
+    # Rate limiting (if implemented)
+    RATELIMIT_ENABLED = True
+    RATELIMIT_STORAGE_URL = 'memory://'
+    
+    # Database connection pool
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True
+    }
 
 class DevelopmentConfig(Config):
-    """Development configuration."""
+    """Development configuration"""
     DEBUG = True
+    SQLALCHEMY_TRACK_MODIFICATIONS = True
     LOG_LEVEL = 'DEBUG'
+    
+    # Development CORS settings
+    CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173']
+    
+    # Development session settings
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = None
 
 class ProductionConfig(Config):
-    """Production configuration."""
+    """Production configuration"""
     DEBUG = False
+    TESTING = False
+    
+    # Production security settings
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError("SECRET_KEY environment variable is required in production")
+    
+    # Production database
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    if not SQLALCHEMY_DATABASE_URI:
+        raise ValueError("DATABASE_URL environment variable is required in production")
+    
+    # Production CORS settings
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
+    
+    # Production session settings
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    
+    # Production logging
     LOG_LEVEL = 'WARNING'
+    
+    # Production Clover settings
+    CLOVER_MERCHANT_ID = os.environ.get('CLOVER_MERCHANT_ID')
+    CLOVER_ACCESS_TOKEN = os.environ.get('CLOVER_ACCESS_TOKEN')
+    
+    if not CLOVER_MERCHANT_ID or not CLOVER_ACCESS_TOKEN:
+        print("WARNING: Clover credentials not set. Clover integration will be disabled.")
+    
+    # Production admin settings
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+    
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+        raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required in production")
 
 class TestingConfig(Config):
-    """Testing configuration."""
+    """Testing configuration"""
     TESTING = True
+    DEBUG = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False
+    
+    # Test CORS settings
+    CORS_ORIGINS = ['http://localhost:3000']
+    
+    # Test session settings
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = None
 
-# Configuration mapping
+# Configuration dictionary
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
     'default': DevelopmentConfig
-} 
+}
+
+# Environment-based configuration selection
+def get_config():
+    """Get configuration based on environment"""
+    env = os.environ.get('FLASK_ENV', 'development')
+    return config.get(env, config['default']) 

@@ -17,7 +17,8 @@ import {
   Upload,
   TrendingUp,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  Database
 } from 'lucide-react';
 
 // Import existing dashboard components
@@ -29,6 +30,7 @@ import { AdminPanel } from './AdminPanel.jsx';
 import { AIDashboard } from './AIDashboard.jsx';
 import { ProfitabilityDashboard } from './ProfitabilityDashboard.jsx';
 import { UserManagement } from './UserManagement.jsx';
+import { CloverIntegration } from './CloverIntegration.jsx';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -42,7 +44,7 @@ export const TenantDashboard = () => {
   );
   
   // Fetch tenant-specific statistics
-  const { data: tenantStats, loading: statsLoading } = useApiData('/dashboard/stats', {});
+  const { data: tenantStats, loading: statsLoading } = useApiData('/dashboard/overview', {});
   
   // Determine user role and permissions - only after auth is loaded
   const isTenantAdmin = !authLoading && user?.is_admin && user?.tenant_id;
@@ -65,6 +67,7 @@ export const TenantDashboard = () => {
     { name: 'Reports', href: '/dashboard/reports', icon: FileText },
     { name: 'AI Insights', href: '/dashboard/ai', icon: BarChart3 },
     { name: 'Profitability', href: '/dashboard/profitability', icon: DollarSign },
+    { name: 'Clover Integration', href: '/dashboard/clover', icon: Database },
     // Admin-only features
     ...(isTenantAdmin ? [
       { name: 'Admin Panel', href: '/dashboard/admin', icon: Settings },
@@ -150,6 +153,7 @@ export const TenantDashboard = () => {
               <Route path="reports" element={<ReportsTab />} />
               <Route path="ai" element={<AIDashboard />} />
               <Route path="profitability" element={<ProfitabilityDashboard />} />
+              <Route path="clover" element={<CloverIntegration />} />
               {isTenantAdmin && (
                 <>
                   <Route path="admin" element={<AdminPanel />} />
@@ -181,10 +185,9 @@ const RestaurantOverview = ({ tenantStats }) => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${tenantStats?.today_sales || 0}</div>
+            <div className="text-2xl font-bold">${tenantStats?.total_revenue || 0}</div>
             <p className="text-xs text-muted-foreground">
-              <TrendingUp className="inline h-3 w-3 text-green-500 mr-1" />
-              +{tenantStats?.sales_growth || 0}% from yesterday
+              {/* No sales growth info in backend, so leave blank or add a placeholder */}
             </p>
           </CardContent>
         </Card>
@@ -195,9 +198,9 @@ const RestaurantOverview = ({ tenantStats }) => {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{tenantStats?.today_orders || 0}</div>
+            <div className="text-2xl font-bold">{tenantStats?.total_transactions || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Average order: ${tenantStats?.avg_order_value || 0}
+              {/* No avg order value in backend, so leave blank or add a placeholder */}
             </p>
           </CardContent>
         </Card>
@@ -208,9 +211,9 @@ const RestaurantOverview = ({ tenantStats }) => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{tenantStats?.active_staff || 0}</div>
+            <div className="text-2xl font-bold">{tenantStats?.staff_count || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {tenantStats?.total_staff || 0} total staff members
+              {/* No total staff in backend, so just show staff_count */}
             </p>
           </CardContent>
         </Card>

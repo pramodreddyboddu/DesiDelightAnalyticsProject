@@ -17,13 +17,21 @@ export const InventoryManagement = () => {
   // Use API hooks for data fetching with caching
   const { data: inventoryData, loading, error, refresh } = useApiData('/inventory', []);
 
-  // Extract categories and handle errors
+  // Fetch categories from backend
   useEffect(() => {
-    if (inventoryData?.items) {
-      const uniqueCategories = [...new Set(inventoryData.items.map(item => item.category))];
-      setCategories(uniqueCategories);
-    }
-  }, [inventoryData]);
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/inventory/categories', { credentials: 'include' });
+        const data = await res.json();
+        if (data.categories) {
+          setCategories(data.categories);
+        }
+      } catch (err) {
+        showError('Failed to load categories', err.message);
+      }
+    };
+    fetchCategories();
+  }, [showError]);
 
   // Show error toast if API call fails, but don't block rendering
   useEffect(() => {
@@ -41,7 +49,7 @@ export const InventoryManagement = () => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.product_code?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || (item.category && item.category.split(',').map(c => c.trim()).includes(selectedCategory));
     return matchesSearch && matchesCategory;
   });
 
@@ -114,7 +122,7 @@ export const InventoryManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredInventory.map((item) => (
+              {filteredInventory.map(item => (
                 <TableRow key={item.id}>
                   <TableCell>
                     {item.image_url ? (

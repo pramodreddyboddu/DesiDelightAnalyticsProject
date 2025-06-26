@@ -4,20 +4,40 @@ import { Button } from '@/components/ui/button.jsx';
 import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { useToast } from '@/components/ui/toast.jsx';
 import { useApiData, useApiMutation } from '@/hooks/use-api.js';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, Brain, Lightbulb, Target, RefreshCw } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, Brain, Lightbulb, Target, RefreshCw, AlertTriangle, Package, Users, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge.jsx';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const AIDashboard = () => {
   const [predictions, setPredictions] = useState(null);
   const [insights, setInsights] = useState([]);
   const [modelStatus, setModelStatus] = useState(null);
+  const [inventoryRecommendations, setInventoryRecommendations] = useState([]);
+  const [customerSegments, setCustomerSegments] = useState({});
+  const [anomalies, setAnomalies] = useState([]);
   const { success, error: showError } = useToast();
+  const [dataWindow, setDataWindow] = useState(90); // default 90 days
+  const windowOptions = [30, 60, 90, 180, 365, 'all'];
+
+  // Fetch base data for AI endpoints
+  const { data: salesData } = useApiData('/dashboard/sales-summary', []);
+  const { data: inventoryBaseData } = useApiData('/inventory', []);
+
+  // Custom fetch for POST endpoints
+  const [anomaliesLoading, setAnomaliesLoading] = useState(false);
+  const [anomaliesError, setAnomaliesError] = useState(null);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState(null);
 
   // Fetch AI data
-  const { data: predictionsData, loading: predictionsLoading, refresh: refreshPredictions } = useApiData('/ai/predictions/sales');
-  const { data: insightsData, loading: insightsLoading, refresh: refreshInsights } = useApiData('/ai/insights/automated');
+  const { data: predictionsData, loading: predictionsLoading, refresh: refreshPredictions } = useApiData(`/ai/predictions/sales?window=${dataWindow}`, [dataWindow]);
+  const { data: insightsData, loading: insightsLoading, refresh: refreshInsights } = useApiData(`/ai/insights/automated?window=${dataWindow}`, [dataWindow]);
   const { data: statusData, loading: statusLoading, refresh: refreshStatus } = useApiData('/ai/models/status');
-  
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [segmentsError, setSegmentsError] = useState(null);
+
   // Train models mutation
   const { mutate: trainModels, loading: trainingLoading } = useApiMutation('/ai/models/train', {
     onSuccess: () => {
@@ -49,6 +69,83 @@ export const AIDashboard = () => {
     }
   }, [statusData]);
 
+  useEffect(() => {
+    const fetchSegments = async () => {
+      if (!salesData?.sales) return;
+      setSegmentsLoading(true);
+      setSegmentsError(null);
+      try {
+        const res = await fetch('http://localhost:5000/api/ai/customers/segments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sales_data: salesData.sales })
+        });
+        if (!res.ok) throw new Error('Failed to fetch customer segments');
+        const data = await res.json();
+        setCustomerSegments(data.data || {});
+      } catch (err) {
+        setSegmentsError(err.message);
+        setCustomerSegments({});
+      } finally {
+        setSegmentsLoading(false);
+      }
+    };
+    if (salesData?.sales) fetchSegments();
+  }, [salesData]);
+
+  useEffect(() => {
+    // Fetch anomalies via POST
+    const fetchAnomalies = async () => {
+      if (!salesData?.sales) return;
+      setAnomaliesLoading(true);
+      setAnomaliesError(null);
+      try {
+        const res = await fetch('http://localhost:5000/api/ai/anomalies/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sales_data: salesData.sales })
+        });
+        if (!res.ok) throw new Error('Failed to fetch anomalies');
+        const data = await res.json();
+        setAnomalies(data.data || []);
+      } catch (err) {
+        setAnomaliesError(err.message);
+        setAnomalies([]);
+      } finally {
+        setAnomaliesLoading(false);
+      }
+    };
+    if (salesData?.sales) fetchAnomalies();
+  }, [salesData]);
+
+  useEffect(() => {
+    // Fetch inventory optimization via POST
+    const fetchInventoryOpt = async () => {
+      if (!salesData?.sales || !inventoryBaseData?.items) return;
+      setInventoryLoading(true);
+      setInventoryError(null);
+      try {
+        const res = await fetch('http://localhost:5000/api/ai/inventory/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sales_data: salesData.sales, inventory_data: inventoryBaseData.items })
+        });
+        if (!res.ok) throw new Error('Failed to fetch inventory optimization');
+        const data = await res.json();
+        setInventoryRecommendations(data.data || []);
+      } catch (err) {
+        setInventoryError(err.message);
+        setInventoryRecommendations([]);
+      } finally {
+        setInventoryLoading(false);
+      }
+    };
+    if (salesData?.sales && inventoryBaseData?.items) fetchInventoryOpt();
+  }, [salesData, inventoryBaseData]);
+
   const handleTrainModels = () => {
     trainModels();
   };
@@ -59,19 +156,34 @@ export const AIDashboard = () => {
     refreshStatus();
   };
 
-  if (predictionsLoading || insightsLoading || statusLoading) {
+  const isLoading = predictionsLoading || insightsLoading || statusLoading || segmentsLoading;
+
+  if (isLoading) {
     return <LoadingSpinner size="lg" text="Loading AI insights..." />;
   }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-900">AI-Powered Analytics</h2>
-        <div className="flex space-x-2">
+        <div className="flex flex-col md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-4">
+          <div className="flex items-center space-x-2">
+            <label htmlFor="window-select" className="text-sm font-medium text-gray-700">Data Window:</label>
+            <select
+              id="window-select"
+              className="border rounded px-2 py-1 text-sm"
+              value={dataWindow}
+              onChange={e => setDataWindow(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+            >
+              {windowOptions.map(opt => (
+                <option key={opt} value={opt}>{opt === 'all' ? 'All Data' : `${opt} days`}</option>
+              ))}
+            </select>
+          </div>
           <Button 
             onClick={handleRefreshAll}
             variant="outline"
-            disabled={predictionsLoading || insightsLoading || statusLoading}
+            disabled={isLoading}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
@@ -103,9 +215,9 @@ export const AIDashboard = () => {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Status:</span>
-                    <span className={modelStatus.sales_model?.exists ? 'text-green-600' : 'text-red-600'}>
+                    <Badge variant={modelStatus.sales_model?.exists ? "default" : "destructive"}>
                       {modelStatus.sales_model?.exists ? 'Trained' : 'Not Trained'}
-                    </span>
+                    </Badge>
                   </div>
                   {modelStatus.sales_model?.exists && (
                     <>
@@ -164,6 +276,162 @@ export const AIDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Inventory Optimization */}
+      {inventoryRecommendations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Package className="w-4 h-4 mr-2" />
+              Inventory Optimization
+            </CardTitle>
+            <CardDescription>
+              AI-powered recommendations for inventory management
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {inventoryRecommendations.slice(0, 5).map((rec, index) => (
+                <div key={index} className="p-4 border rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold">Item #{rec.item_id}</h4>
+                    <Badge variant={rec.urgency === 'high' ? "destructive" : "secondary"}>
+                      {rec.urgency} priority
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Current Stock:</span>
+                      <p className="font-medium">{rec.current_stock}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Reorder Point:</span>
+                      <p className="font-medium">{rec.reorder_point}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Recommended Order:</span>
+                      <p className="font-medium">{rec.recommended_order}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Safety Stock:</span>
+                      <p className="font-medium">{rec.safety_stock}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">{rec.reason}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Customer Segmentation */}
+      {Object.keys(customerSegments).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Users className="w-4 h-4 mr-2" />
+              Customer Segmentation
+            </CardTitle>
+            <CardDescription>
+              AI-powered customer behavior analysis and segmentation
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-semibold mb-4">Customer Segments</h4>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={Object.entries(customerSegments).map(([segment, data]) => ({
+                        name: segment,
+                        value: data.count,
+                        revenue: data.total_revenue
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {Object.entries(customerSegments).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value, name) => [value, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-4">
+                {Object.entries(customerSegments).map(([segment, data]) => (
+                  <div key={segment} className="p-3 border rounded-lg">
+                    <h5 className="font-medium mb-2">{segment}</h5>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>Customers:</span>
+                        <span>{data.count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Avg Order Value:</span>
+                        <span>${data.avg_order_value.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Total Revenue:</span>
+                        <span>${data.total_revenue.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Anomaly Detection */}
+      {anomalies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <AlertTriangle className="w-4 h-4 mr-2 text-orange-500" />
+              Sales Anomalies Detected
+            </CardTitle>
+            <CardDescription>
+              Unusual sales patterns that may need attention
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {anomalies.slice(0, 5).map((anomaly, index) => (
+                <div key={index} className="p-3 border border-orange-200 rounded-lg bg-orange-50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium text-orange-800">{anomaly.date}</h4>
+                      <p className="text-sm text-orange-600">{anomaly.type}</p>
+                    </div>
+                    <Badge variant="outline" className="text-orange-700">
+                      Anomaly
+                    </Badge>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-orange-600">Revenue:</span>
+                      <p className="font-medium">${anomaly.revenue.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <span className="text-orange-600">Quantity:</span>
+                      <p className="font-medium">{anomaly.quantity}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* AI Insights */}
       {insights.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -173,12 +441,20 @@ export const AIDashboard = () => {
                 <CardTitle className="flex items-center text-lg">
                   <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
                   {insight.title}
+                  {insight.priority === 'high' && (
+                    <Badge variant="destructive" className="ml-2">High Priority</Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-gray-600 mb-4">
                   {insight.description}
                 </p>
+                {insight.owner_explanation && (
+                  <div className="p-2 mb-2 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-xs">
+                    <span className="font-semibold">Owner Tip: </span>{insight.owner_explanation}
+                  </div>
+                )}
                 
                 {insight.type === 'top_performers' && (
                   <div className="space-y-2">
@@ -249,6 +525,21 @@ export const AIDashboard = () => {
                       <span>Total Days</span>
                       <span className="font-semibold">{insight.data.total_days}</span>
                     </div>
+                  </div>
+                )}
+
+                {insight.type === 'anomalies' && (
+                  <div className="space-y-2">
+                    <div className="text-sm text-red-600 font-medium">
+                      {insight.data.length} anomalies detected
+                    </div>
+                    {insight.data.slice(0, 2).map((anomaly, idx) => (
+                      <div key={idx} className="text-sm text-gray-600">
+                        {anomaly.date}: ${anomaly.revenue.toFixed(2)}
+                        <span className="ml-2 font-semibold">{anomaly.anomaly_type}</span>
+                        <div className="text-xs text-yellow-800">{anomaly.explanation}</div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

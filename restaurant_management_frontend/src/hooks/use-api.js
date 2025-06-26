@@ -52,8 +52,8 @@ export const useApi = () => {
 
       return data;
     } catch (err) {
-      setError(err.message);
-      showError('Request Failed', err.message);
+      setError(err.message || String(err));
+      showError('Request Failed', err.message || String(err));
       throw err;
     } finally {
       setLoading(false);
@@ -132,9 +132,9 @@ export const useApiData = (url, dependencies = null, options = {}) => {
       const result = await get(fullUrl);
       setData(result);
     } catch (err) {
-      setError(err);
+      setError(err.message || String(err));
       if (showToast) {
-        showError('Failed to load data', err.error || 'An unexpected error occurred');
+        showError('Failed to load data', err.message || String(err));
       }
     } finally {
       setLoading(false);
@@ -192,8 +192,8 @@ export const useApiMutation = (endpoint, options = {}) => {
         if(options.onError) {
             options.onError(err, variables);
         } else {
-            setError(err.message);
-            showError('Mutation Failed', err.message);
+            setError(err.message || String(err));
+            showError('Mutation Failed', err.message || String(err));
         }
       throw err;
     } finally {
