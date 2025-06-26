@@ -107,13 +107,9 @@ class ProductionConfig(Config):
     
     # Production security settings
     SECRET_KEY = os.environ.get('SECRET_KEY')
-    if not SECRET_KEY:
-        raise ValueError("SECRET_KEY environment variable is required in production")
     
     # Production database
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-    if not SQLALCHEMY_DATABASE_URI:
-        raise ValueError("DATABASE_URL environment variable is required in production")
     
     # Production CORS settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
@@ -129,15 +125,21 @@ class ProductionConfig(Config):
     CLOVER_MERCHANT_ID = os.environ.get('CLOVER_MERCHANT_ID')
     CLOVER_ACCESS_TOKEN = os.environ.get('CLOVER_ACCESS_TOKEN')
     
-    if not CLOVER_MERCHANT_ID or not CLOVER_ACCESS_TOKEN:
-        print("WARNING: Clover credentials not set. Clover integration will be disabled.")
-    
     # Production admin settings
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
     
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-        raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required in production")
+    def __init__(self):
+        super().__init__()
+        # Validate required environment variables only when config is used
+        if not self.SECRET_KEY:
+            raise ValueError("SECRET_KEY environment variable is required in production")
+        if not self.SQLALCHEMY_DATABASE_URI:
+            raise ValueError("DATABASE_URL environment variable is required in production")
+        if not self.ADMIN_USERNAME or not self.ADMIN_PASSWORD:
+            raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required in production")
+        if not self.CLOVER_MERCHANT_ID or not self.CLOVER_ACCESS_TOKEN:
+            print("WARNING: Clover credentials not set. Clover integration will be disabled.")
 
 class TestingConfig(Config):
     """Testing configuration"""
