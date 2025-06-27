@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 import os
 
-clover_bp = Blueprint('clover', __name__, url_prefix='/clover')
+clover_bp = Blueprint('clover', __name__)
 logger = logging.getLogger(__name__)
 
 def get_clover_service():

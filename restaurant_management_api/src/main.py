@@ -47,8 +47,12 @@ def create_app(config_name='default'):
     app.config.from_object(config[config_name])
     
     # Force correct session cookie settings for cross-site cookies
-    app.config['SESSION_COOKIE_SECURE'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    if config_name == 'production':
+        app.config['SESSION_COOKIE_SECURE'] = True
+        app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    else:
+        app.config['SESSION_COOKIE_SECURE'] = False
+        app.config['SESSION_COOKIE_SAMESITE'] = None
     
     # Debug print for CORS origins
     print("CORS_ORIGINS at startup:", app.config['CORS_ORIGINS'])
@@ -90,11 +94,16 @@ def create_app(config_name='default'):
             db.session.commit()
             logger.info('Admin user password updated')
 
-    # Robust CORS setup: allow all backend endpoints for the Vercel frontend
-    # NOTE: If you change your Vercel frontend domain, update this list!
+    # Robust CORS setup: allow all backend endpoints for the Vercel frontend and Heroku
+    # NOTE: If you change your frontend domain, update this list!
     CORS(
         app,
-        resources={r"/*": {"origins": ["https://desi-delight-analytics-project-pkhf.vercel.app"]}},
+        resources={r"/*": {"origins": [
+            "https://desi-delight-analytics-project-pkhf.vercel.app",
+            "https://desi-delight-analytics-project-usvt.vercel.app",
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ]}},
         supports_credentials=True,
         allow_headers=app.config['CORS_ALLOW_HEADERS'],
         expose_headers=app.config['CORS_EXPOSE_HEADERS'],
@@ -180,6 +189,20 @@ def create_app(config_name='default'):
             'message': 'CORS test successful',
             'session': dict(session),
             'cookies': dict(request.cookies)
+        }), 200
+
+    # Debug endpoint for authentication status
+    @app.route('/api/debug/auth', methods=['GET'])
+    def debug_auth():
+        """Debug endpoint to check authentication status"""
+        return jsonify({
+            'session_exists': 'user_id' in session,
+            'user_id': session.get('user_id'),
+            'session_data': dict(session),
+            'cookies': dict(request.cookies),
+            'headers': dict(request.headers),
+            'origin': request.headers.get('Origin'),
+            'referer': request.headers.get('Referer')
         }), 200
 
     return app

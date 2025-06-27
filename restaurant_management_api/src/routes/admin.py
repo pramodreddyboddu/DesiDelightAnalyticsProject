@@ -13,7 +13,7 @@ from sqlalchemy import func, case
 import logging
 import pytz
 
-admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/system-stats', methods=['GET'])
 @super_admin_required

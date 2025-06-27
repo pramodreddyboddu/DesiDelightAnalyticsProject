@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.WARNING)
 _ai_insights_cache = {'data': None, 'timestamp': None}
 _AI_INSIGHTS_CACHE_TTL = 180  # seconds (3 minutes)
 
-ai_bp = Blueprint('ai', __name__, url_prefix='/ai')
+ai_bp = Blueprint('ai', __name__)
 ai_service = AIService()
 dashboard_service = DashboardService()
 logger = logging.getLogger(__name__)
