@@ -42,7 +42,7 @@ export const ProfitabilityDashboard = () => {
       if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/profitability?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/profitability?${params}`, {
         credentials: 'include'
       });
 

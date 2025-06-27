@@ -34,14 +34,14 @@ export const AIDashboard = () => {
   const [inventoryError, setInventoryError] = useState(null);
 
   // Fetch AI data
-  const { data: predictionsData, loading: predictionsLoading, refresh: refreshPredictions } = useApiData(`/api/ai/predictions/sales?window=${dataWindow}`, [dataWindow]);
-  const { data: insightsData, loading: insightsLoading, refresh: refreshInsights } = useApiData(`/api/ai/insights/automated?window=${dataWindow}`, [dataWindow]);
+  const { data: predictionsData, loading: predictionsLoading, refresh: refreshPredictions } = useApiData(`/ai/predictions/sales?window=${dataWindow}`, [dataWindow]);
+  const { data: insightsData, loading: insightsLoading, refresh: refreshInsights } = useApiData(`/ai/insights/automated?window=${dataWindow}`, [dataWindow]);
   const { data: statusData, loading: statusLoading, refresh: refreshStatus } = useApiData('ai/models/status');
   const [segmentsLoading, setSegmentsLoading] = useState(false);
   const [segmentsError, setSegmentsError] = useState(null);
 
   // Train models mutation
-  const { mutate: trainModels, loading: trainingLoading } = useApiMutation('/api/ai/models/train', {
+  const { mutate: trainModels, loading: trainingLoading } = useApiMutation('/ai/models/train', {
     onSuccess: () => {
       success('Models Trained', 'AI models have been successfully trained with latest data');
       refreshPredictions();
@@ -77,7 +77,7 @@ export const AIDashboard = () => {
       setSegmentsLoading(true);
       setSegmentsError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/ai/customers/segments`, {
+        const res = await fetch(`${API_BASE_URL}/ai/customers/segments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -103,7 +103,7 @@ export const AIDashboard = () => {
       setAnomaliesLoading(true);
       setAnomaliesError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/ai/anomalies/detect`, {
+        const res = await fetch(`${API_BASE_URL}/ai/anomalies/detect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -129,7 +129,7 @@ export const AIDashboard = () => {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/ai/inventory/optimize`, {
+        const res = await fetch(`${API_BASE_URL}/ai/inventory/optimize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

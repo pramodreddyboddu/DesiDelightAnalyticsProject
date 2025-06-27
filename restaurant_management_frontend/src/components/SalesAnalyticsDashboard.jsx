@@ -127,7 +127,7 @@ export const SalesAnalyticsDashboard = () => {
       }
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/sales?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/sales?${params}`, {
         credentials: 'include'
       });
 

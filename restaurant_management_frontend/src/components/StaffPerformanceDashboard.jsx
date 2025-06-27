@@ -41,7 +41,7 @@ export const StaffPerformanceDashboard = () => {
   useEffect(() => {
     const fetchChefs = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/dashboard/chefs`, { credentials: 'include' });
+        const response = await fetch(`${API_BASE_URL}/dashboard/chefs`, { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           setChefList(data);
@@ -155,7 +155,7 @@ export const StaffPerformanceDashboard = () => {
       }
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/chef-performance?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/chef-performance?${params}`, {
         credentials: 'include'
       });
 

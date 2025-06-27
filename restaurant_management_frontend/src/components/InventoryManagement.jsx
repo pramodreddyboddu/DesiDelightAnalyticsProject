@@ -23,7 +23,7 @@ export const InventoryManagement = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/inventory/categories`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/inventory/categories`, { credentials: 'include' });
         const data = await res.json();
         if (data.categories) {
           setCategories(data.categories);

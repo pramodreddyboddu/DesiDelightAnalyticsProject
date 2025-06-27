@@ -11,7 +11,7 @@ export default function DataSourceConfig() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/dashboard/data-source-config`, { credentials: "include" })
+    fetch(`${API_BASE_URL}/dashboard/data-source-config`, { credentials: "include" })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch config");
         return res.json();
@@ -33,7 +33,7 @@ export default function DataSourceConfig() {
 
   const saveConfig = () => {
     setSaving(true);
-    fetch(`${API_BASE_URL}/api/dashboard/data-source-config`, {
+    fetch(`${API_BASE_URL}/dashboard/data-source-config`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -51,7 +51,7 @@ export default function DataSourceConfig() {
   };
 
   const syncClover = (type) => {
-    fetch(`${API_BASE_URL}/api/clover/sync/${type}`, {
+    fetch(`${API_BASE_URL}/clover/sync/${type}`, {
       method: "POST",
       credentials: "include",
     })

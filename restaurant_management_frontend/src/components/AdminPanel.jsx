@@ -82,7 +82,7 @@ export const AdminPanel = () => {
     }
   );
   
-  const { mutate: deleteData, loading: deleteLoading } = useApiMutation('/api/admin/delete-data', {
+  const { mutate: deleteData, loading: deleteLoading } = useApiMutation('/admin/delete-data', {
     successMessage: 'Data deleted successfully!',
     invalidateCache: '/admin'
   });
@@ -100,7 +100,7 @@ export const AdminPanel = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${API_BASE_URL}/api/upload/${fileType}`, {
+      const response = await fetch(`${API_BASE_URL}/upload/${fileType}`, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -163,7 +163,7 @@ export const AdminPanel = () => {
         let totalDeleted = 0;
         
         for (const type of dataTypes) {
-          const response = await fetch(`${API_BASE_URL}/api/admin/delete-data`, {
+          const response = await fetch(`${API_BASE_URL}/admin/delete-data`, {
             method: 'DELETE',
             headers: {
               'Content-Type': 'application/json',
@@ -188,7 +188,7 @@ export const AdminPanel = () => {
         success('Delete Successful', `Successfully deleted ${totalDeleted} records across all data types`);
         refreshStats();
       } else {
-        const response = await fetch(`${API_BASE_URL}/api/admin/delete-data`, {
+        const response = await fetch(`${API_BASE_URL}/admin/delete-data`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -220,7 +220,7 @@ export const AdminPanel = () => {
 
   const fetchUncategorizedItems = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/dashboard/items/uncategorized`, {
+      const response = await fetch(`${API_BASE_URL}/dashboard/items/uncategorized`, {
         credentials: 'include'
       });
       const data = await response.json();
@@ -232,7 +232,7 @@ export const AdminPanel = () => {
 
   const categorizeItem = async (itemId, category) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/dashboard/items/uncategorized/${itemId}/categorize`, {
+      const response = await fetch(`${API_BASE_URL}/dashboard/items/uncategorized/${itemId}/categorize`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
