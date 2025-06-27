@@ -86,10 +86,11 @@ def create_app(config_name='default'):
             db.session.commit()
             logger.info('Admin user password updated')
 
-    # Robust CORS setup: use only allowed origins from config
+    # Robust CORS setup: hardcode allowed origins for production stability
+    # NOTE: If you change your Vercel frontend domain, update this list!
     CORS(
         app,
-        resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
+        resources={r"/api/*": {"origins": ["https://desi-delight-analytics-project-pkhf.vercel.app"]}},
         supports_credentials=True,
         allow_headers=app.config['CORS_ALLOW_HEADERS'],
         expose_headers=app.config['CORS_EXPOSE_HEADERS'],
