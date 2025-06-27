@@ -3,6 +3,17 @@ import { useToast } from '@/components/ui/toast.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Robust URL join helper
+function joinUrl(base, path) {
+  if (!base.endsWith('/') && !path.startsWith('/')) {
+    return base + '/' + path;
+  }
+  if (base.endsWith('/') && path.startsWith('/')) {
+    return base + path.slice(1);
+  }
+  return base + path;
+}
+
 export const useApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -10,8 +21,8 @@ export const useApi = () => {
   const { success, error: showError } = useToast();
 
   const request = useCallback(async (url, options = {}) => {
-    // If url doesn't start with http, prepend the base URL
-    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    // If url doesn't start with http, robustly join with base URL
+    const fullUrl = url.startsWith('http') ? url : joinUrl(API_BASE_URL, url);
     const cacheKey = `${options.method || 'GET'}:${fullUrl}:${JSON.stringify(options.body || {})}`;
     
     // Check cache for GET requests (but not for dashboard endpoints)
