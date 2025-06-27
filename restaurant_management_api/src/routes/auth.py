@@ -38,10 +38,13 @@ def login():
         # Only log successful login
         current_app.logger.warning(f'User {username} logged in successfully')
 
-        return jsonify({
+        resp = make_response(jsonify({
             'message': 'Login successful',
             'user': user.to_dict()
-        })
+        }))
+        # Debug: print response headers
+        print('Login response headers:', dict(resp.headers))
+        return resp
     except Exception as e:
         current_app.logger.error(f"Login error: {str(e)}")
         return jsonify({'error': str(e)}), 500
