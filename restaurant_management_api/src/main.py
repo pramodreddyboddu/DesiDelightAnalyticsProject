@@ -92,6 +92,7 @@ def create_app(config_name=None):
     CORS(
         app,
         resources={r"/*": {"origins": [
+            "https://desi-delight-analytics-project.vercel.app",
             "https://desi-delight-analytics-project-pkhf.vercel.app",
             "https://desi-delight-analytics-project-usvt.vercel.app",
             "http://localhost:5173",
