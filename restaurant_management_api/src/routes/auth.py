@@ -35,6 +35,9 @@ def login():
         session['is_admin'] = user.is_admin
         session['tenant_id'] = user.tenant_id
 
+        # Debug: log session after login
+        current_app.logger.info(f"Session after login: {dict(session)}")
+
         # Only log successful login
         current_app.logger.warning(f'User {username} logged in successfully')
 
@@ -77,6 +80,7 @@ def logout():
 def get_current_user():
     """Get current user information"""
     try:
+        current_app.logger.info(f"Session in /me: {dict(session)}")
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'error': 'No user in session'}), 401
@@ -145,26 +149,7 @@ def register():
 
 @auth_bp.route('/test-session', methods=['GET'])
 def test_session():
-    """Test session handling"""
-    try:
-        # Log current session state
-        current_app.logger.info('Current session: %s', dict(session))
-        current_app.logger.info('Session ID: %s', session.sid if hasattr(session, 'sid') else 'No session ID')
-        current_app.logger.info('Request cookies: %s', dict(request.cookies))
-
-        # Set a test value in the session
-        session['test_value'] = 'test123'
-        session.modified = True
-
-        # Log session after modification
-        current_app.logger.info('Session after modification: %s', dict(session))
-
-        return jsonify({
-            'message': 'Session test successful',
-            'session_id': session.sid if hasattr(session, 'sid') else 'No session ID',
-            'session_data': dict(session)
-        })
-    except Exception as e:
-        current_app.logger.error(f"Session test error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    session['test'] = 'hello'
+    current_app.logger.info(f"Session in test-session: {dict(session)}")
+    return jsonify({'session': dict(session)})
 
