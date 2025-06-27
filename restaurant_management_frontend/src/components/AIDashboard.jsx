@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge.jsx';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export const AIDashboard = () => {
   const [predictions, setPredictions] = useState(null);
   const [insights, setInsights] = useState([]);
@@ -75,7 +77,7 @@ export const AIDashboard = () => {
       setSegmentsLoading(true);
       setSegmentsError(null);
       try {
-        const res = await fetch('http://localhost:5000/api/ai/customers/segments', {
+        const res = await fetch(`${API_BASE_URL}/ai/customers/segments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -101,7 +103,7 @@ export const AIDashboard = () => {
       setAnomaliesLoading(true);
       setAnomaliesError(null);
       try {
-        const res = await fetch('http://localhost:5000/api/ai/anomalies/detect', {
+        const res = await fetch(`${API_BASE_URL}/ai/anomalies/detect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -127,7 +129,7 @@ export const AIDashboard = () => {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
-        const res = await fetch('http://localhost:5000/api/ai/inventory/optimize', {
+        const res = await fetch(`${API_BASE_URL}/ai/inventory/optimize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

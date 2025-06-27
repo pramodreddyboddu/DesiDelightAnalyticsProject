@@ -32,7 +32,7 @@ import { ProfitabilityDashboard } from './ProfitabilityDashboard.jsx';
 import { UserManagement } from './UserManagement.jsx';
 import { CloverIntegration } from './CloverIntegration.jsx';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const TenantDashboard = () => {
   const { user, logout, loading: authLoading } = useAuth();

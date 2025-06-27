@@ -8,6 +8,8 @@ import { useToast } from '@/components/ui/toast.jsx';
 import { useApiData } from '@/hooks/use-api.js';
 import { Search, Filter, Image as ImageIcon } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -21,7 +23,7 @@ export const InventoryManagement = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/inventory/categories', { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/inventory/categories`, { credentials: 'include' });
         const data = await res.json();
         if (data.categories) {
           setCategories(data.categories);
