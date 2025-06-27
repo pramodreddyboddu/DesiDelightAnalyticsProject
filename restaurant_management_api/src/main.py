@@ -133,6 +133,11 @@ def create_app(config_name='default'):
     app.register_blueprint(tenant_data_bp, url_prefix='/api/tenant-data')
     logger.info("Blueprints registered successfully")
 
+    # Global OPTIONS handler for CORS preflight
+    @app.route('/<path:path>', methods=['OPTIONS'])
+    def options_handler(path):
+        return '', 200
+
     # Health check endpoint
     @app.route('/')
     def index():
