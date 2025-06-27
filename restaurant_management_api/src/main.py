@@ -103,10 +103,10 @@ def create_app(config_name='default'):
             db.session.commit()
             logger.info('Admin user password updated')
     
-    # Enhanced CORS configuration
+    # TEMP: Allow all origins for CORS to diagnose CORS issues
     CORS(
         app,
-        resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
+        resources={r"/api/*": {"origins": "*"}},
         supports_credentials=True,
         allow_headers=app.config['CORS_ALLOW_HEADERS'],
         expose_headers=app.config['CORS_EXPOSE_HEADERS'],
@@ -118,7 +118,9 @@ def create_app(config_name='default'):
     def add_cors_headers(response):
         origin = request.headers.get('Origin')
         allowed_origins = app.config['CORS_ORIGINS']
-        if origin in allowed_origins:
+        print(f"Request Origin: {origin}, Allowed Origins: {allowed_origins}")
+        # For testing, allow all origins
+        if origin:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Vary'] = 'Origin'
             response.headers['Access-Control-Allow-Credentials'] = 'true'
