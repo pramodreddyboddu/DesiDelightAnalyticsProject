@@ -7,7 +7,6 @@ import logging
 from datetime import timedelta, datetime
 import uuid
 from sqlalchemy import text
-from tempfile import gettempdir
 
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -201,9 +200,13 @@ def create_app(config_name=None):
 
     return app
 
-if __name__ == '__main__':
-    app = create_app()
-    app.run(debug=False, host='0.0.0.0', port=5000)
-
 # Expose app for Gunicorn/Heroku
 app = create_app()
+
+if __name__ == '__main__':
+    # Only runs for local development
+    app.run(
+        debug=False,
+        host=os.environ.get('FLASK_RUN_HOST', '0.0.0.0'),
+        port=int(os.environ.get('FLASK_RUN_PORT', 5000))
+    )
