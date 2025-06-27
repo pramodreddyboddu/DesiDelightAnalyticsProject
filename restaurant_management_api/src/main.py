@@ -59,33 +59,14 @@ def create_app(config_name='default'):
     # Initialize extensions
     db.init_app(app)
     
-    # Initialize Flask-Session
+    # Initialize Flask-Session (config-driven)
     Session(app)
-    
-    # Configure session explicitly
-    app.config['SESSION_PERMANENT'] = True
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
-    app.config['SESSION_COOKIE_SECURE'] = False  # For local development
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = None  # Allow cross-site requests
-    app.config['SESSION_COOKIE_PATH'] = '/'
-    app.config['SESSION_COOKIE_DOMAIN'] = None
-    app.config['SESSION_COOKIE_NAME'] = 'plateiq_session'
-    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
-    app.config['SESSION_USE_SIGNER'] = True
-    app.config['SESSION_KEY_PREFIX'] = 'plateiq_'
-    app.config['SESSION_TYPE'] = 'filesystem'
-    app.config['SESSION_FILE_DIR'] = os.path.join(gettempdir(), 'plateiq_sessions')
-    os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
     
     # Create database tables and admin user
     with app.app_context():
-        # Always create tables before any queries
         logger.info('Ensuring all database tables exist...')
         db.create_all()
         logger.info('Database tables created or already exist')
-        
-        # Create admin user if it doesn't exist
         admin = User.query.filter_by(username=app.config['ADMIN_USERNAME']).first()
         if not admin:
             admin = User(
@@ -98,58 +79,37 @@ def create_app(config_name='default'):
             db.session.commit()
             logger.info('Admin user created successfully')
         else:
-            # Update admin password if it exists
             admin.set_password(app.config['ADMIN_PASSWORD'])
             db.session.commit()
             logger.info('Admin user password updated')
-    
-    # TEMP: Allow all origins for CORS to diagnose CORS issues
+
+    # Robust CORS setup: use only allowed origins from config
     CORS(
         app,
-        resources={r"/api/*": {"origins": "*"}},
+        resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
         supports_credentials=True,
         allow_headers=app.config['CORS_ALLOW_HEADERS'],
         expose_headers=app.config['CORS_EXPOSE_HEADERS'],
         methods=app.config['CORS_METHODS'],
         max_age=app.config['CORS_MAX_AGE']
     )
-    
-    @app.after_request
-    def add_cors_headers(response):
-        origin = request.headers.get('Origin')
-        print(f"Request Origin: {origin}, Allowed Origins: {app.config['CORS_ORIGINS']}")
-        if origin:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Vary'] = 'Origin'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With'
-            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
-        return response
-    
+
     # Enhanced request logging middleware
     @app.before_request
     def before_request():
         try:
-            # Generate unique request ID for tracking
             g.request_id = str(uuid.uuid4())
-            
-            # Load user object if logged in
             g.user = None
             if 'user_id' in session:
                 g.user = User.query.get(session['user_id'])
-            
-            # Log all requests for debugging
             logger.info(f"Request: {request.method} {request.path} - Origin: {request.headers.get('Origin', 'None')}")
             logger.info(f"Headers: {dict(request.headers)}")
             logger.info(f"Session: {dict(session)}")
-            
-            # Log request information
             if request.method in ['POST', 'PUT', 'DELETE']:
                 log_request_info()
-                
         except Exception as e:
             logger.error(f"Error in before_request: {str(e)}")
-    
+
     # Register blueprints
     logger.info("Registering blueprints...")
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -164,7 +124,7 @@ def create_app(config_name='default'):
     app.register_blueprint(tenant_bp, url_prefix='/api/tenant')
     app.register_blueprint(tenant_data_bp, url_prefix='/api/tenant-data')
     logger.info("Blueprints registered successfully")
-    
+
     # Health check endpoint
     @app.route('/')
     def index():
@@ -173,15 +133,12 @@ def create_app(config_name='default'):
             'message': 'PlateIQ Analytics API is running!',
             'version': '1.0.0'
         }), 200
-    
+
     # Health check endpoint for monitoring
     @app.route('/api/health', methods=['GET'])
     def health_check():
-        """Health check endpoint for monitoring"""
         try:
-            # Check database connection using proper SQLAlchemy syntax
             db.session.execute(text('SELECT 1'))
-            
             return jsonify({
                 'status': 'healthy',
                 'timestamp': datetime.utcnow().isoformat(),
@@ -195,7 +152,7 @@ def create_app(config_name='default'):
                 'database': 'disconnected',
                 'error': str(e)
             }), 500
-    
+
     # Test endpoint for CORS debugging
     @app.route('/api/test-cors', methods=['GET', 'OPTIONS'])
     def test_cors():
@@ -206,13 +163,12 @@ def create_app(config_name='default'):
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Cookie'
             response.headers['Access-Control-Allow-Credentials'] = 'true'
             return response, 200
-        
         return jsonify({
             'message': 'CORS test successful',
             'session': dict(session),
             'cookies': dict(request.cookies)
         }), 200
-    
+
     return app
 
 if __name__ == '__main__':
