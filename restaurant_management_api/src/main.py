@@ -104,17 +104,14 @@ def create_app(config_name='default'):
             logger.info('Admin user password updated')
     
     # Enhanced CORS configuration
-    CORS(app, 
-         resources={
-             r"/api/*": {
-                 "origins": app.config['CORS_ORIGINS'],
-                 "methods": app.config['CORS_METHODS'],
-                 "allow_headers": app.config['CORS_ALLOW_HEADERS'],
-                 "expose_headers": app.config['CORS_EXPOSE_HEADERS'],
-                 "supports_credentials": app.config['CORS_SUPPORTS_CREDENTIALS'],
-                 "max_age": app.config['CORS_MAX_AGE']
-             }
-         }
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}},
+        supports_credentials=True,
+        allow_headers=app.config['CORS_ALLOW_HEADERS'],
+        expose_headers=app.config['CORS_EXPOSE_HEADERS'],
+        methods=app.config['CORS_METHODS'],
+        max_age=app.config['CORS_MAX_AGE']
     )
     
     # Enhanced request logging middleware
