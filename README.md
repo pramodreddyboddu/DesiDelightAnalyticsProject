@@ -111,6 +111,41 @@ A comprehensive restaurant management system with analytics capabilities for Des
 - POST `/api/upload/{type}` - Upload data files
 - DELETE `/api/admin/delete-data` - Delete data
 
+## Setting Inventory Data Source to Clover
+
+To ensure your inventory data is synced from Clover, you must set the inventory data source to `clover` in the backend configuration.
+
+### Option 1: Using the API Endpoint
+
+Send a PUT request to `/api/dashboard/data-source-config` with the following JSON body:
+
+```json
+{
+  "data_sources": {
+    "sales": "clover",
+    "inventory": "clover"
+  }
+}
+```
+
+You can use a tool like `curl` or Postman:
+
+```bash
+curl -X PUT https://<your-backend-domain>/api/dashboard/data-source-config \
+  -H "Content-Type: application/json" \
+  -d '{"data_sources": {"sales": "clover", "inventory": "clover"}}'
+```
+
+### Option 2: Using the Admin UI
+
+- Go to the Data Source Configuration section in the admin panel.
+- Set both **Sales Source** and **Inventory Source** to `Clover`.
+- Save the configuration.
+
+### Why is this important?
+
+If the inventory data source is not set to `clover`, your backend will use local data and not sync inventory from Clover. This is required for real-time and accurate inventory management.
+
 ## Contributing
 
 1. Fork the repository

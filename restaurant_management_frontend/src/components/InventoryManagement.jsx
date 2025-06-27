@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner.jsx';
 import { useToast } from '@/components/ui/toast.jsx';
 import { useApiData } from '@/hooks/use-api.js';
 import { Search, Filter, Image as ImageIcon } from 'lucide-react';
+import { Switch } from '@/components/ui/switch.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -14,10 +15,11 @@ export const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
+  const [showClover, setShowClover] = useState(false);
   const { error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: inventoryData, loading, error, refresh } = useApiData('inventory', []);
+  const { data: inventoryData, loading, error, refresh } = useApiData(showClover ? 'clover/inventory' : 'inventory', [showClover]);
 
   // Fetch categories from backend
   useEffect(() => {
@@ -47,8 +49,8 @@ export const InventoryManagement = () => {
     }
   }, [error, showError, refresh]);
 
-  const filteredInventory = (inventoryData?.items || []).filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredInventory = (inventoryData?.items || inventoryData || []).filter(item => {
+    const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.product_code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || (item.category && item.category.split(',').map(c => c.trim()).includes(selectedCategory));
@@ -62,8 +64,14 @@ export const InventoryManagement = () => {
   // Even if there's an error, try to show data if we have it
   return (
     <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
-      
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm">Show Clover Inventory</span>
+          <Switch checked={showClover} onCheckedChange={setShowClover} />
+          <span className="text-xs text-gray-500">({showClover ? 'Clover' : 'Local'} source)</span>
+        </div>
+      </div>
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -125,7 +133,7 @@ export const InventoryManagement = () => {
             </TableHeader>
             <TableBody>
               {filteredInventory.map(item => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id || item.item_id}>
                   <TableCell>
                     {item.image_url ? (
                       <img 
@@ -148,7 +156,7 @@ export const InventoryManagement = () => {
                   <TableCell>{item.product_code || '-'}</TableCell>
                   <TableCell>{item.category || 'Uncategorized'}</TableCell>
                   <TableCell className="text-right">${item.price?.toFixed(2) || '0.00'}</TableCell>
-                  <TableCell className="text-right">{item.quantity || 0}</TableCell>
+                  <TableCell className="text-right">{item.quantity ?? item.current_stock ?? 0}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
