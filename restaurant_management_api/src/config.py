@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 from tempfile import gettempdir
+import redis
 
 # Load environment variables
 # load_dotenv()  # Temporarily disabled due to .env file encoding issues
@@ -25,7 +26,8 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Session configuration
-    SESSION_TYPE = 'filesystem'
+    SESSION_TYPE = 'redis'
+    SESSION_REDIS = redis.from_url(REDIS_URL)
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
