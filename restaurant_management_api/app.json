@@ -1,0 +1,38 @@
+{
+  "name": "PlateIQ Analytics API",
+  "description": "Restaurant analytics and management system",
+  "repository": "https://github.com/pramodreddyboddu/DesiDelightAnalyticsProject",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["python", "flask", "analytics", "restaurant"],
+  "env": {
+    "FLASK_ENV": {
+      "description": "Flask environment",
+      "value": "production"
+    },
+    "SECRET_KEY": {
+      "description": "Secret key for Flask sessions",
+      "generator": "secret"
+    },
+    "ADMIN_USERNAME": {
+      "description": "Admin username",
+      "value": "admin"
+    },
+    "ADMIN_PASSWORD": {
+      "description": "Admin password",
+      "value": "admin123"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-postgresql:mini"
+    },
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+} 

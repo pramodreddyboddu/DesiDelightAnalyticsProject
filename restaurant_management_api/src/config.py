@@ -9,7 +9,16 @@ from tempfile import gettempdir
 class Config:
     """Base configuration class"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///restaurant_management.db'
+    
+    # Handle Heroku's DATABASE_URL format
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = database_url or 'sqlite:///restaurant_management.db'
+    
+    # Redis configuration for Heroku
+    REDIS_URL = os.environ.get('REDIS_URL') or 'redis://localhost:6379'
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Session configuration
