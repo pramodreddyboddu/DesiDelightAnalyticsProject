@@ -131,7 +131,7 @@ class ProductionConfig(Config):
     
     # Production session settings
     SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SAMESITE = 'None'
     
     # Production logging
     LOG_LEVEL = 'WARNING'
