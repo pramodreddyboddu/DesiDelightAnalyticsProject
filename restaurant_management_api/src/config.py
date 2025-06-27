@@ -39,7 +39,13 @@ class Config:
     SESSION_KEY_PREFIX = 'plateiq_'
     
     # CORS configuration
-    CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173']
+    CORS_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'https://desi-delight-analytics-project-usvt.vercel.app'
+    ]
     CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
     CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With']
     CORS_EXPOSE_HEADERS = ['Content-Type', 'Authorization']
