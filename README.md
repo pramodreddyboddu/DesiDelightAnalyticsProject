@@ -22,7 +22,7 @@ A comprehensive restaurant management system with analytics capabilities for Des
 - React Router
 - Axios
 
-### Backend
+### Backend ##
 - Python Flask
 - SQLAlchemy
 - SQLite
