@@ -38,9 +38,11 @@ from src.config import config
 from src.utils.logger import setup_logger, log_request_info
 from src.utils.error_handlers import setup_error_handlers, log_request_error
 
-def create_app(config_name='default'):
+def create_app(config_name=None):
     """Create and configure the Flask application with enhanced security."""
     
+    if not config_name:
+        config_name = os.environ.get('FLASK_CONFIG', 'production')
     app = Flask(__name__)
     
     # Load configuration
