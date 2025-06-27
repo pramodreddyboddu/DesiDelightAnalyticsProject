@@ -27,12 +27,23 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Session configuration
-    SESSION_TYPE = 'redis'
+    SESSION_TYPE = 'filesystem'  # Fallback to filesystem if Redis is not available
     redis_url = os.environ.get('REDIS_URL')
-    if redis_url and redis_url.startswith('rediss://'):
-        SESSION_REDIS = redis.from_url(redis_url, ssl_cert_reqs=None)
+    if redis_url:
+        try:
+            if redis_url.startswith('rediss://'):
+                SESSION_REDIS = redis.from_url(redis_url, ssl_cert_reqs=None)
+            else:
+                SESSION_REDIS = redis.from_url(redis_url)
+            SESSION_TYPE = 'redis'
+        except Exception as e:
+            print(f"Warning: Redis connection failed, using filesystem sessions: {e}")
+            SESSION_REDIS = None
+            SESSION_TYPE = 'filesystem'
     else:
-        SESSION_REDIS = redis.from_url(redis_url) if redis_url else None
+        SESSION_REDIS = None
+        SESSION_TYPE = 'filesystem'
+    
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
@@ -136,9 +147,10 @@ class ProductionConfig(Config):
     # Production CORS settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
     
-    # Production session settings
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_SAMESITE = 'None'
+    # Production session settings - be more careful with these
+    SESSION_COOKIE_SECURE = True  # Only if HTTPS is available
+    SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
+    SESSION_COOKIE_DOMAIN = None  # Let Flask set this automatically
     
     # Production logging
     LOG_LEVEL = 'WARNING'
@@ -162,6 +174,14 @@ class ProductionConfig(Config):
             raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required in production")
         if not self.CLOVER_MERCHANT_ID or not self.CLOVER_ACCESS_TOKEN:
             print("WARNING: Clover credentials not set. Clover integration will be disabled.")
+        
+        # Override session settings if needed
+        if not self.CORS_ORIGINS:
+            print("WARNING: No CORS_ORIGINS set, using default origins")
+            self.CORS_ORIGINS = [
+                'https://desi-delight-analytics-project-pkhf.vercel.app',
+                'https://desi-delight-analytics-project-usvt.vercel.app'
+            ]
 
 class TestingConfig(Config):
     """Testing configuration"""

@@ -153,3 +153,18 @@ def test_session():
     current_app.logger.info(f"Session in test-session: {dict(session)}")
     return jsonify({'session': dict(session)})
 
+@auth_bp.route('/session-info', methods=['GET'])
+def session_info():
+    """Get detailed session information for debugging"""
+    return jsonify({
+        'session_exists': bool(session),
+        'session_data': dict(session),
+        'session_id': session.sid if hasattr(session, 'sid') else 'No session ID',
+        'cookies': dict(request.cookies),
+        'headers': {
+            'origin': request.headers.get('Origin'),
+            'referer': request.headers.get('Referer'),
+            'user_agent': request.headers.get('User-Agent')
+        }
+    })
+
