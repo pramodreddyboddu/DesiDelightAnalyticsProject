@@ -1,0 +1,1 @@
+web: cd restaurant_management_api && gunicorn --bind 0.0.0.0:$PORT src.main:app 
