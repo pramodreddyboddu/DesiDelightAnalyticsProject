@@ -17,13 +17,13 @@ export const InventoryManagement = () => {
   const { error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: inventoryData, loading, error, refresh } = useApiData('/inventory', []);
+  const { data: inventoryData, loading, error, refresh } = useApiData('/api/inventory', []);
 
   // Fetch categories from backend
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/inventory/categories`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/inventory/categories`, { credentials: 'include' });
         const data = await res.json();
         if (data.categories) {
           setCategories(data.categories);

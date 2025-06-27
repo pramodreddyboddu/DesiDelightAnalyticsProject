@@ -24,8 +24,8 @@ export const AIDashboard = () => {
   const windowOptions = [30, 60, 90, 180, 365, 'all'];
 
   // Fetch base data for AI endpoints
-  const { data: salesData } = useApiData('/dashboard/sales-summary', []);
-  const { data: inventoryBaseData } = useApiData('/inventory', []);
+  const { data: salesData } = useApiData('/api/dashboard/sales-summary', []);
+  const { data: inventoryBaseData } = useApiData('/api/inventory', []);
 
   // Custom fetch for POST endpoints
   const [anomaliesLoading, setAnomaliesLoading] = useState(false);
@@ -34,14 +34,14 @@ export const AIDashboard = () => {
   const [inventoryError, setInventoryError] = useState(null);
 
   // Fetch AI data
-  const { data: predictionsData, loading: predictionsLoading, refresh: refreshPredictions } = useApiData(`/ai/predictions/sales?window=${dataWindow}`, [dataWindow]);
-  const { data: insightsData, loading: insightsLoading, refresh: refreshInsights } = useApiData(`/ai/insights/automated?window=${dataWindow}`, [dataWindow]);
-  const { data: statusData, loading: statusLoading, refresh: refreshStatus } = useApiData('/ai/models/status');
+  const { data: predictionsData, loading: predictionsLoading, refresh: refreshPredictions } = useApiData(`/api/ai/predictions/sales?window=${dataWindow}`, [dataWindow]);
+  const { data: insightsData, loading: insightsLoading, refresh: refreshInsights } = useApiData(`/api/ai/insights/automated?window=${dataWindow}`, [dataWindow]);
+  const { data: statusData, loading: statusLoading, refresh: refreshStatus } = useApiData('/api/ai/models/status');
   const [segmentsLoading, setSegmentsLoading] = useState(false);
   const [segmentsError, setSegmentsError] = useState(null);
 
   // Train models mutation
-  const { mutate: trainModels, loading: trainingLoading } = useApiMutation('/ai/models/train', {
+  const { mutate: trainModels, loading: trainingLoading } = useApiMutation('/api/ai/models/train', {
     onSuccess: () => {
       success('Models Trained', 'AI models have been successfully trained with latest data');
       refreshPredictions();

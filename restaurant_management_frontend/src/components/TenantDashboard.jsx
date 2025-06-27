@@ -44,7 +44,7 @@ export const TenantDashboard = () => {
   );
   
   // Fetch tenant-specific statistics
-  const { data: tenantStats, loading: statsLoading } = useApiData('/dashboard/overview', {});
+  const { data: tenantStats, loading: statsLoading } = useApiData('/api/dashboard/overview', {});
   
   // Determine user role and permissions - only after auth is loaded
   const isTenantAdmin = !authLoading && user?.is_admin && user?.tenant_id;
