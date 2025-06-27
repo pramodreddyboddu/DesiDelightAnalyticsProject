@@ -46,6 +46,9 @@ def create_app(config_name='default'):
     # Load configuration
     app.config.from_object(config[config_name])
     
+    # Setup enhanced logging first
+    logger = setup_logger(app)
+    
     # Force correct session cookie settings for cross-site cookies
     if config_name == 'production':
         app.config['SESSION_COOKIE_SECURE'] = True
@@ -64,9 +67,6 @@ def create_app(config_name='default'):
     # Add Flask configuration to prevent redirects
     app.config['STRICT_SLASHES'] = False  # Don't redirect for trailing slashes
     app.config['PREFERRED_URL_SCHEME'] = 'http'  # For local development
-    
-    # Setup enhanced logging
-    logger = setup_logger(app)
     
     # Setup error handlers
     setup_error_handlers(app)
