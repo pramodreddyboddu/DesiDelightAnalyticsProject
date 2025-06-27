@@ -46,6 +46,10 @@ def create_app(config_name='default'):
     # Load configuration
     app.config.from_object(config[config_name])
     
+    # Force correct session cookie settings for cross-site cookies
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    
     # Debug print for CORS origins
     print("CORS_ORIGINS at startup:", app.config['CORS_ORIGINS'])
     
