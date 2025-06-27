@@ -80,16 +80,10 @@ def create_app(config_name='default'):
     
     # Create database tables and admin user
     with app.app_context():
-        # Only create tables if they don't exist
-        try:
-            # Check if tables exist by trying to query a table
-            db.session.execute(text('SELECT 1 FROM user LIMIT 1'))
-            logger.info('Database tables already exist, skipping creation')
-        except Exception:
-            # Tables don't exist, create them
-            logger.info('Creating database tables...')
-            db.create_all()
-            logger.info('Database tables created successfully')
+        # Always create tables before any queries
+        logger.info('Ensuring all database tables exist...')
+        db.create_all()
+        logger.info('Database tables created or already exist')
         
         # Create admin user if it doesn't exist
         admin = User.query.filter_by(username=app.config['ADMIN_USERNAME']).first()
