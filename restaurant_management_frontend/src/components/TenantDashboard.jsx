@@ -40,7 +40,7 @@ export const TenantDashboard = () => {
   
   // Fetch tenant-specific data
   const { data: tenantData, loading: tenantLoading } = useApiData(
-    user?.tenant_id ? `/tenant/tenants/${user.tenant_id}` : null
+    user?.tenant_id ? `tenant/tenants/${user.tenant_id}` : null
   );
   
   // Fetch tenant-specific statistics

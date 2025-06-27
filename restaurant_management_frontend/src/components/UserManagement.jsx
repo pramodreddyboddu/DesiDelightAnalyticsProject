@@ -42,7 +42,7 @@ const UserForm = ({ onUserAdded, tenantId }) => {
     onError: (err) => {
         showError('Error Creating User', err.error || 'An unexpected error occurred.');
     },
-    invalidateCache: tenantId ? `/tenant/tenants/${tenantId}/users` : '/admin/users'
+    invalidateCache: tenantId ? `tenant/tenants/${tenantId}/users` : 'admin/users'
   });
 
   const handleSubmit = (e) => {
@@ -111,7 +111,7 @@ const UserList = ({ users, loading, onUserDeleted, tenantId }) => {
     const isSuperAdmin = currentUser?.is_admin && !currentUser?.tenant_id;
 
     const { mutate: deleteUser, loading: deleteLoading } = useApiMutation(
-        (userId) => `/admin/users/${userId}`, // Use the super admin route for deletion
+        (userId) => `admin/users/${userId}`, // Use the super admin route for deletion
         {
             method: 'DELETE',
             onSuccess: () => {
@@ -121,7 +121,7 @@ const UserList = ({ users, loading, onUserDeleted, tenantId }) => {
             onError: (err) => {
                 showError('Error Deleting User', err.error || 'An unexpected error occurred.');
             },
-            invalidateCache: isSuperAdmin ? '/admin/users' : `/tenant/tenants/${tenantId}/users`
+            invalidateCache: isSuperAdmin ? 'admin/users' : `tenant/tenants/${tenantId}/users`
         }
     );
 
@@ -217,9 +217,9 @@ export const UserManagement = () => {
   const isTenantAdmin = user?.is_admin && !!user?.tenant_id;
 
   const usersApiUrl = isSuperAdmin
-    ? '/admin/users'
+    ? 'admin/users'
     : isTenantAdmin
-    ? `/tenant/tenants/${user.tenant_id}/users`
+    ? `tenant/tenants/${user.tenant_id}/users`
     : null;
 
   const { data: userData, loading, error, refresh } = useApiData(usersApiUrl);

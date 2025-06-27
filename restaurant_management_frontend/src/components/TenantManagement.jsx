@@ -44,10 +44,10 @@ export const TenantManagement = () => {
   const { success, error: showError } = useToast();
 
   // Fetch tenants data
-  const { data: tenantsData, loading: tenantsLoading, refresh: refreshTenants } = useApiData('/tenant/tenants');
+  const { data: tenantsData, loading: tenantsLoading, refresh: refreshTenants } = useApiData('tenant/tenants');
   
   // Create tenant mutation
-  const { mutate: createTenant, loading: creatingTenant } = useApiMutation('/tenant/tenants', {
+  const { mutate: createTenant, loading: creatingTenant } = useApiMutation('tenant/tenants', {
     onSuccess: (data) => {
       success('Tenant Created', 'New tenant has been created successfully');
       setShowCreateForm(false);
@@ -61,7 +61,7 @@ export const TenantManagement = () => {
   });
 
   // Update tenant mutation
-  const { mutate: updateTenant, loading: updatingTenant } = useApiMutation(`/tenant/tenants/${selectedTenant?.id}`, {
+  const { mutate: updateTenant, loading: updatingTenant } = useApiMutation(`tenant/tenants/${selectedTenant?.id}`, {
     method: 'PUT',
     onSuccess: () => {
       success('Tenant Updated', 'Tenant has been updated successfully');
