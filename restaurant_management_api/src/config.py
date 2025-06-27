@@ -6,15 +6,18 @@ from tempfile import gettempdir
 # Load environment variables
 # load_dotenv()  # Temporarily disabled due to .env file encoding issues
 
+def get_database_uri():
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url and db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    return db_url or 'sqlite:///restaurant_management.db'
+
 class Config:
     """Base configuration class"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-change-in-production'
     
     # Handle Heroku's DATABASE_URL format
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    SQLALCHEMY_DATABASE_URI = database_url or 'sqlite:///restaurant_management.db'
+    SQLALCHEMY_DATABASE_URI = get_database_uri()
     
     # Redis configuration for Heroku
     REDIS_URL = os.environ.get('REDIS_URL') or 'redis://localhost:6379'
@@ -116,9 +119,6 @@ class ProductionConfig(Config):
     
     # Production security settings
     SECRET_KEY = os.environ.get('SECRET_KEY')
-    
-    # Production database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     
     # Production CORS settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
