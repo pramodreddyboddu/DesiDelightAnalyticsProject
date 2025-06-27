@@ -264,62 +264,113 @@ def upload_chef_mapping():
     tenant_id = request.tenant_id
     create_upload_folder()
 
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+    try:
+        if 'file' not in request.files:
+            logger.error(f"Chef mapping upload failed: No file provided")
+            return jsonify({'error': 'No file part'}), 400
+            
+        file = request.files['file']
+        if file.filename == '' or not allowed_file(file.filename):
+            logger.error(f"Chef mapping upload failed: Invalid file - filename: {file.filename}")
+            return jsonify({'error': 'No selected file or file type not allowed'}), 400
+
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        logger.info(f"Processing chef mapping file: {filename} for tenant {tenant_id}")
         
-    file = request.files['file']
-    if file.filename == '' or not allowed_file(file.filename):
-        return jsonify({'error': 'No selected file or file type not allowed'}), 400
+        file.save(filepath)
+        logger.info(f"File saved to: {filepath}")
 
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(filepath)
+        # Try to read the Excel file
+        try:
+            df = pd.read_excel(filepath)
+            logger.info(f"Successfully read Excel file with {len(df)} rows and columns: {df.columns.tolist()}")
+        except Exception as e:
+            logger.error(f"Failed to read Excel file: {str(e)}")
+            return jsonify({'error': f'Failed to read Excel file: {str(e)}'}), 500
 
-    df = pd.read_excel(filepath)
-    clean_column_names(df)
+        clean_column_names(df)
+        logger.info(f"After cleaning, columns are: {df.columns.tolist()}")
 
-    if 'chef_name' not in df.columns or 'item_name' not in df.columns:
-        logger.warning(f"Chef mapping upload failed for tenant {tenant_id}. Missing columns. Found: {df.columns.tolist()}")
-        return jsonify({'error': "Upload failed. The file must contain columns for 'Chef Name' and 'Item Name'."}), 400
+        if 'chef_name' not in df.columns or 'item_name' not in df.columns:
+            logger.error(f"Chef mapping upload failed for tenant {tenant_id}. Missing columns. Found: {df.columns.tolist()}")
+            return jsonify({'error': "Upload failed. The file must contain columns for 'Chef Name' and 'Item Name'."}), 400
 
-    mappings_created = 0
-    for index, row in df.iterrows():
-        chef_name = row.get('chef_name')
-        item_name = row.get('item_name')
+        mappings_created = 0
+        errors = []
         
-        # Skip rows with NaN or empty values
-        if pd.isna(chef_name) or pd.isna(item_name) or not chef_name or not item_name:
-            logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}'")
-            continue
+        for index, row in df.iterrows():
+            try:
+                chef_name = row.get('chef_name')
+                item_name = row.get('item_name')
+                
+                # Skip rows with NaN or empty values
+                if pd.isna(chef_name) or pd.isna(item_name) or not chef_name or not item_name:
+                    logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}'")
+                    continue
 
-        chef = Chef.query.filter_by(name=chef_name, tenant_id=tenant_id).first()
-        if not chef:
-            # Generate unique clover_id for chef
-            chef_clover_id = f"CHEF_{chef_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
-            chef = Chef(name=chef_name, tenant_id=tenant_id, clover_id=chef_clover_id)
-            db.session.add(chef)
-            db.session.flush()
+                logger.info(f"Processing row {index}: chef='{chef_name}', item='{item_name}'")
 
-        item = Item.query.filter_by(name=item_name, tenant_id=tenant_id).first()
-        if not item:
-            # Optionally create the item if it doesn't exist
-            item_clover_id = f"ITEM_{item_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
-            item = Item(name=item_name, category='Uncategorized', tenant_id=tenant_id, clover_id=item_clover_id)
-            db.session.add(item)
-            db.session.flush()
+                chef = Chef.query.filter_by(name=chef_name, tenant_id=tenant_id).first()
+                if not chef:
+                    # Generate unique clover_id for chef
+                    chef_clover_id = f"CHEF_{chef_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
+                    chef = Chef(name=chef_name, tenant_id=tenant_id, clover_id=chef_clover_id)
+                    db.session.add(chef)
+                    db.session.flush()
+                    logger.info(f"Created new chef: {chef_name} with ID: {chef.id}")
 
-        mapping = ChefDishMapping.query.filter_by(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id).first()
-        if not mapping:
-            mapping = ChefDishMapping(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id)
-            db.session.add(mapping)
-            mappings_created += 1
+                item = Item.query.filter_by(name=item_name, tenant_id=tenant_id).first()
+                if not item:
+                    # Optionally create the item if it doesn't exist
+                    item_clover_id = f"ITEM_{item_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
+                    item = Item(name=item_name, category='Uncategorized', tenant_id=tenant_id, clover_id=item_clover_id)
+                    db.session.add(item)
+                    db.session.flush()
+                    logger.info(f"Created new item: {item_name} with ID: {item.id}")
 
-    db.session.commit()
+                mapping = ChefDishMapping.query.filter_by(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id).first()
+                if not mapping:
+                    mapping = ChefDishMapping(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id)
+                    db.session.add(mapping)
+                    mappings_created += 1
+                    logger.info(f"Created mapping: {chef_name} -> {item_name}")
+                else:
+                    logger.info(f"Mapping already exists: {chef_name} -> {item_name}")
 
-    if os.path.exists(filepath):
-        os.remove(filepath)
+            except Exception as e:
+                error_msg = f"Error processing row {index}: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                continue
 
-    return jsonify({'message': f'{mappings_created} new chef-dish mappings created successfully.'})
+        try:
+            db.session.commit()
+            logger.info(f"Successfully committed {mappings_created} new chef-dish mappings")
+        except Exception as e:
+            logger.error(f"Database commit failed: {str(e)}")
+            db.session.rollback()
+            return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.info(f"Cleaned up temporary file: {filepath}")
+
+        return jsonify({
+            'message': f'{mappings_created} new chef-dish mappings created successfully.',
+            'errors': errors[:5] if errors else []
+        })
+
+    except Exception as e:
+        logger.error(f"Unexpected error in chef mapping upload: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Clean up file if it exists
+        if 'filepath' in locals() and os.path.exists(filepath):
+            os.remove(filepath)
+            
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
 @upload_bp.route('/expenses', methods=['POST'])
 @tenant_admin_required

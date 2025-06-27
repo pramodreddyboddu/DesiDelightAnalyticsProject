@@ -21,6 +21,23 @@ export const InventoryManagement = () => {
   // Use API hooks for data fetching with caching
   const { data: inventoryData, loading, error, refresh } = useApiData(showClover ? 'clover/inventory' : 'inventory', [showClover]);
 
+  // Debug logging
+  useEffect(() => {
+    if (inventoryData) {
+      console.log('Inventory data received:', inventoryData);
+      console.log('Data type:', typeof inventoryData);
+      console.log('Is array:', Array.isArray(inventoryData));
+      if (inventoryData.items) {
+        console.log('Items array:', inventoryData.items);
+        console.log('Items is array:', Array.isArray(inventoryData.items));
+      }
+      if (inventoryData.inventory) {
+        console.log('Inventory array:', inventoryData.inventory);
+        console.log('Inventory is array:', Array.isArray(inventoryData.inventory));
+      }
+    }
+  }, [inventoryData]);
+
   // Fetch categories from backend
   useEffect(() => {
     const fetchCategories = async () => {
@@ -49,13 +66,29 @@ export const InventoryManagement = () => {
     }
   }, [error, showError, refresh]);
 
-  const filteredInventory = (inventoryData?.items || inventoryData || []).filter(item => {
-    const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.product_code?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || (item.category && item.category.split(',').map(c => c.trim()).includes(selectedCategory));
-    return matchesSearch && matchesCategory;
-  });
+  const filteredInventory = (() => {
+    // Ensure we have an array to work with
+    let items = [];
+    
+    if (inventoryData) {
+      if (Array.isArray(inventoryData)) {
+        items = inventoryData;
+      } else if (inventoryData.items && Array.isArray(inventoryData.items)) {
+        items = inventoryData.items;
+      } else if (inventoryData.inventory && Array.isArray(inventoryData.inventory)) {
+        items = inventoryData.inventory;
+      }
+    }
+    
+    // Now filter the items
+    return items.filter(item => {
+      const matchesSearch = item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           item.product_code?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || (item.category && item.category.split(',').map(c => c.trim()).includes(selectedCategory));
+      return matchesSearch && matchesCategory;
+    });
+  })();
 
   if (loading) {
     return <LoadingSpinner size="lg" text="Loading inventory data..." />;
