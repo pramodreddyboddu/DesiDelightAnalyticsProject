@@ -117,13 +117,13 @@ def create_app(config_name='default'):
     @app.after_request
     def add_cors_headers(response):
         origin = request.headers.get('Origin')
-        allowed_origins = app.config['CORS_ORIGINS']
-        print(f"Request Origin: {origin}, Allowed Origins: {allowed_origins}")
-        # For testing, allow all origins
+        print(f"Request Origin: {origin}, Allowed Origins: {app.config['CORS_ORIGINS']}")
         if origin:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Vary'] = 'Origin'
             response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,X-Requested-With'
+            response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
         return response
     
     # Enhanced request logging middleware
