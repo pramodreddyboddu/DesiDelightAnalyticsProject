@@ -215,3 +215,6 @@ def create_app(config_name='default'):
 if __name__ == '__main__':
     app = create_app()
     app.run(debug=False, host='0.0.0.0', port=5000)
+
+# Expose app for Gunicorn/Heroku
+app = create_app()
