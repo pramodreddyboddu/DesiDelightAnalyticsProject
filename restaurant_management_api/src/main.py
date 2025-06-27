@@ -46,6 +46,9 @@ def create_app(config_name='default'):
     # Load configuration
     app.config.from_object(config[config_name])
     
+    # Debug print for CORS origins
+    print("CORS_ORIGINS at startup:", app.config['CORS_ORIGINS'])
+    
     # Add Flask configuration to prevent redirects
     app.config['STRICT_SLASHES'] = False  # Don't redirect for trailing slashes
     app.config['PREFERRED_URL_SCHEME'] = 'http'  # For local development
