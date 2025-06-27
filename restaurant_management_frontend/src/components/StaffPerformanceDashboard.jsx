@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input.jsx';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const StaffPerformanceDashboard = () => {
@@ -32,7 +32,7 @@ export const StaffPerformanceDashboard = () => {
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching - only depends on dateRange now
-  const { data: performanceData, loading, error, refresh } = useApiData('/dashboard/chef-performance', {
+  const { data: performanceData, loading, error, refresh } = useApiData('/api/dashboard/chef-performance', {
     start_date: dateRange.from?.toISOString(),
     end_date: dateRange.to?.toISOString()
   });
@@ -41,7 +41,7 @@ export const StaffPerformanceDashboard = () => {
   useEffect(() => {
     const fetchChefs = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/dashboard/chefs`, { credentials: 'include' });
+        const response = await fetch(`${API_BASE_URL}/api/dashboard/chefs`, { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           setChefList(data);
@@ -155,7 +155,7 @@ export const StaffPerformanceDashboard = () => {
       }
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/reports/chef-performance?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/api/reports/chef-performance?${params}`, {
         credentials: 'include'
       });
 

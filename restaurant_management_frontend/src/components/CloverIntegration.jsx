@@ -128,35 +128,35 @@ export const CloverIntegration = () => {
   } = useRateLimitedApi(`${API_BASE_URL}/clover/customers`);
   
   // Sync mutations
-  const { mutate: syncSales, loading: salesSyncLoading } = useApiMutation('/clover/sync/sales', {
+  const { mutate: syncSales, loading: salesSyncLoading } = useApiMutation('/api/clover/sync/sales', {
     onSuccess: () => {
-      success('Sales Sync Complete', 'Sales data has been synced from Clover');
+      success('Sales Sync Complete', 'Sales data has been successfully synchronized from Clover');
       fetchRealtime();
     },
     onError: (error) => {
-      showError('Sales Sync Failed', error.message || 'Failed to sync sales data');
+      showError('Sales Sync Failed', error.message || 'Failed to sync sales data from Clover');
     }
   });
 
-  const { mutate: syncInventory, loading: inventorySyncLoading } = useApiMutation('/clover/sync/inventory', {
+  const { mutate: syncInventory, loading: inventorySyncLoading } = useApiMutation('/api/clover/sync/inventory', {
     onSuccess: () => {
-      success('Inventory Sync Complete', 'Inventory data has been synced from Clover');
+      success('Inventory Sync Complete', 'Inventory data has been successfully synchronized from Clover');
       fetchInventory();
     },
     onError: (error) => {
-      showError('Inventory Sync Failed', error.message || 'Failed to sync inventory data');
+      showError('Inventory Sync Failed', error.message || 'Failed to sync inventory data from Clover');
     }
   });
 
-  const { mutate: syncAll, loading: allSyncLoading } = useApiMutation('/clover/sync/all', {
+  const { mutate: syncAll, loading: allSyncLoading } = useApiMutation('/api/clover/sync/all', {
     onSuccess: () => {
-      success('Full Sync Complete', 'All data has been synced from Clover');
+      success('Full Sync Complete', 'All data has been successfully synchronized from Clover');
       fetchStatus();
       fetchRealtime();
       fetchInventory();
     },
     onError: (error) => {
-      showError('Full Sync Failed', error.message || 'Failed to sync data');
+      showError('Full Sync Failed', error.message || 'Failed to sync all data from Clover');
     }
   });
 

@@ -21,7 +21,7 @@ export const ReportsTab = () => {
       if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
       params.append('format', format);
 
-      const response = await fetch(`${API_BASE_URL}/reports/${selectedReport}?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/api/reports/${selectedReport}?${params}`, {
         credentials: 'include'
       });
 

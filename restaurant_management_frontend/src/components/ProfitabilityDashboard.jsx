@@ -9,7 +9,7 @@ import { useApiData } from '@/hooks/use-api.js';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 // Set default dateRange: from = midnight (00:00:00) in America/Chicago, to = same day (today only)
@@ -23,9 +23,9 @@ export const ProfitabilityDashboard = () => {
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: profitData, loading, error } = useApiData('/dashboard/profitability', {
-    start_date: dateRange.from ? dateRange.from.toISOString() : null,
-    end_date: dateRange.to ? dateRange.to.toISOString() : null
+  const { data: profitData, loading, error } = useApiData('/api/dashboard/profitability', {
+    start_date: dateRange.from?.toISOString(),
+    end_date: dateRange.to?.toISOString()
   });
 
   // Show error toast if API call fails
@@ -42,7 +42,7 @@ export const ProfitabilityDashboard = () => {
       if (dateRange.to) params.append('end_date', dateRange.to.toISOString());
       params.append('format', format);
 
-      const response = await fetch(`http://localhost:5000/api/reports/profitability?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/api/reports/profitability?${params}`, {
         credentials: 'include'
       });
 

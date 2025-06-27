@@ -77,7 +77,7 @@ export const AIDashboard = () => {
       setSegmentsLoading(true);
       setSegmentsError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/ai/customers/segments`, {
+        const res = await fetch(`${API_BASE_URL}/api/ai/customers/segments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -103,7 +103,7 @@ export const AIDashboard = () => {
       setAnomaliesLoading(true);
       setAnomaliesError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/ai/anomalies/detect`, {
+        const res = await fetch(`${API_BASE_URL}/api/ai/anomalies/detect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -129,7 +129,7 @@ export const AIDashboard = () => {
       setInventoryLoading(true);
       setInventoryError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/ai/inventory/optimize`, {
+        const res = await fetch(`${API_BASE_URL}/api/ai/inventory/optimize`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

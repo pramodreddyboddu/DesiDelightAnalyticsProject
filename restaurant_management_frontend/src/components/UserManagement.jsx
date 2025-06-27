@@ -30,7 +30,7 @@ const UserForm = ({ onUserAdded, tenantId }) => {
   const [role, setRole] = useState('user');
   const { error: showError, success: showSuccess } = useToast();
 
-  const { mutate: createUser, loading, error } = useApiMutation('/auth/register', {
+  const { mutate: createUser, loading, error } = useApiMutation('/api/auth/register', {
     onSuccess: () => {
       showSuccess('User Created', `User "${username}" has been created successfully.`);
       setUsername('');

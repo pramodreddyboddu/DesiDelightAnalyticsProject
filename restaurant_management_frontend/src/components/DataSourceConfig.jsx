@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "./ui/button.jsx";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export default function DataSourceConfig() {
   const [config, setConfig] = useState({ sales: "local", inventory: "local" });
   const [loading, setLoading] = useState(true);
@@ -9,7 +11,7 @@ export default function DataSourceConfig() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/dashboard/data-source-config", { credentials: "include" })
+    fetch(`${API_BASE_URL}/api/dashboard/data-source-config`, { credentials: "include" })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch config");
         return res.json();
@@ -31,7 +33,7 @@ export default function DataSourceConfig() {
 
   const saveConfig = () => {
     setSaving(true);
-    fetch("/api/dashboard/data-source-config", {
+    fetch(`${API_BASE_URL}/api/dashboard/data-source-config`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -49,7 +51,7 @@ export default function DataSourceConfig() {
   };
 
   const syncClover = (type) => {
-    fetch(`/api/clover/sync/${type}`, {
+    fetch(`${API_BASE_URL}/api/clover/sync/${type}`, {
       method: "POST",
       credentials: "include",
     })
