@@ -114,6 +114,16 @@ def create_app(config_name='default'):
         max_age=app.config['CORS_MAX_AGE']
     )
     
+    @app.after_request
+    def add_cors_headers(response):
+        origin = request.headers.get('Origin')
+        allowed_origins = app.config['CORS_ORIGINS']
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Vary'] = 'Origin'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+    
     # Enhanced request logging middleware
     @app.before_request
     def before_request():
