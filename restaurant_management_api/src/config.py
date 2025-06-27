@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from datetime import timedelta
 from tempfile import gettempdir
 import redis
+import urllib.parse
 
 # Load environment variables
 # load_dotenv()  # Temporarily disabled due to .env file encoding issues
@@ -27,7 +28,11 @@ class Config:
     
     # Session configuration
     SESSION_TYPE = 'redis'
-    SESSION_REDIS = redis.from_url(REDIS_URL)
+    redis_url = os.environ.get('REDIS_URL')
+    if redis_url and redis_url.startswith('rediss://'):
+        SESSION_REDIS = redis.from_url(redis_url, ssl_cert_reqs=None)
+    else:
+        SESSION_REDIS = redis.from_url(redis_url) if redis_url else None
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
