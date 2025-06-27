@@ -32,7 +32,7 @@ export const StaffPerformanceDashboard = () => {
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching - only depends on dateRange now
-  const { data: performanceData, loading, error, refresh } = useApiData('/api/dashboard/chef-performance', {
+  const { data: performanceData, loading, error, refresh } = useApiData('dashboard/chef-performance', {
     start_date: dateRange.from?.toISOString(),
     end_date: dateRange.to?.toISOString()
   });

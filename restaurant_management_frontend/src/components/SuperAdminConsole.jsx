@@ -33,7 +33,7 @@ export const SuperAdminConsole = () => {
   const location = useLocation();
   
   // Fetch system-wide statistics
-  const { data: systemStats, loading: statsLoading } = useApiData('/api/admin/system-stats', {});
+  const { data: systemStats, loading: statsLoading } = useApiData('admin/system-stats', {});
   
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: BarChart3 },

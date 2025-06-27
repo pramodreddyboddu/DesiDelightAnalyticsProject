@@ -131,11 +131,11 @@ const DashboardOverview = ({ setActiveTab }) => {
   const { error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: salesData, loading: salesLoading, error: salesError } = useApiData('/api/dashboard/sales-summary', []);
-  const { data: expensesData, loading: expensesLoading, error: expensesError } = useApiData('/api/dashboard/expenses', []);
-  const { data: profitData, loading: profitLoading, error: profitError } = useApiData('/api/dashboard/profitability', []);
-  const { data: activityData, loading: activityLoading, error: activityError } = useApiData('/api/dashboard/recent-activity', []);
-  const { data: actionsData, loading: actionsLoading, error: actionsError } = useApiData('/api/dashboard/quick-actions', []);
+  const { data: salesData, loading: salesLoading, error: salesError } = useApiData('dashboard/sales-summary', []);
+  const { data: expensesData, loading: expensesLoading, error: expensesError } = useApiData('dashboard/expenses', []);
+  const { data: profitData, loading: profitLoading, error: profitError } = useApiData('dashboard/profitability', []);
+  const { data: activityData, loading: activityLoading, error: activityError } = useApiData('dashboard/recent-activity', []);
+  const { data: actionsData, loading: actionsLoading, error: actionsError } = useApiData('dashboard/quick-actions', []);
 
   // Calculate loading state
   const loading = salesLoading || expensesLoading || profitLoading || activityLoading || actionsLoading;

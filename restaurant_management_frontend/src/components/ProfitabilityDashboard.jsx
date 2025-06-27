@@ -23,7 +23,7 @@ export const ProfitabilityDashboard = () => {
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: profitData, loading, error } = useApiData('/api/dashboard/profitability', {
+  const { data: profitData, loading, error } = useApiData('dashboard/profitability', {
     start_date: dateRange.from?.toISOString(),
     end_date: dateRange.to?.toISOString()
   });

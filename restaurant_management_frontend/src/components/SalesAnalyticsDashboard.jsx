@@ -31,13 +31,13 @@ export const SalesAnalyticsDashboard = () => {
   const { success, error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
-  const { data: salesData, loading, error, refresh } = useApiData('/api/dashboard/sales-summary', {
+  const { data: salesData, loading, error, refresh } = useApiData('dashboard/sales-summary', {
     start_date: dateRange.from ? dateRange.from.toISOString() : null,
     end_date: dateRange.to ? dateRange.to.toISOString() : null,
     category: selectedCategories.includes('all') ? 'all' : selectedCategories.join(',')
   });
   
-  const { data: inventoryData } = useApiData('/api/inventory', []);
+  const { data: inventoryData } = useApiData('inventory', []);
 
   // Extract categories from inventory data
   useEffect(() => {
