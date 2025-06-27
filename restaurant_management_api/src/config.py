@@ -26,8 +26,8 @@ class Config:
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Session configuration
-    SESSION_TYPE = 'filesystem'  # Fallback to filesystem if Redis is not available
+    # Session configuration - Fixed for cross-origin and Redis
+    SESSION_TYPE = 'redis'  # Use Redis by default for better performance
     redis_url = os.environ.get('REDIS_URL')
     if redis_url:
         try:
@@ -36,24 +36,28 @@ class Config:
             else:
                 SESSION_REDIS = redis.from_url(redis_url)
             SESSION_TYPE = 'redis'
+            print(f"✅ Using Redis for sessions: {redis_url}")
         except Exception as e:
-            print(f"Warning: Redis connection failed, using filesystem sessions: {e}")
+            print(f"⚠️ Redis connection failed, using filesystem sessions: {e}")
             SESSION_REDIS = None
             SESSION_TYPE = 'filesystem'
     else:
         SESSION_REDIS = None
         SESSION_TYPE = 'filesystem'
+        print("⚠️ No REDIS_URL found, using filesystem sessions")
     
+    # Session settings optimized for cross-origin requests
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
-    SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+    SESSION_COOKIE_SECURE = True  # Always secure in production
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = None
+    SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin
     SESSION_COOKIE_PATH = '/'
     SESSION_COOKIE_NAME = 'plateiq_session'
     SESSION_REFRESH_EACH_REQUEST = True
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'plateiq_'
+    SESSION_COOKIE_DOMAIN = None  # Let Flask set this automatically
     
     # CORS configuration
     CORS_ORIGINS = [
@@ -147,11 +151,6 @@ class ProductionConfig(Config):
     # Production CORS settings
     CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '').split(',') if os.environ.get('CORS_ORIGINS') else []
     
-    # Production session settings - be more careful with these
-    SESSION_COOKIE_SECURE = True  # Only if HTTPS is available
-    SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
-    SESSION_COOKIE_DOMAIN = None  # Let Flask set this automatically
-    
     # Production logging
     LOG_LEVEL = 'WARNING'
     
@@ -175,13 +174,16 @@ class ProductionConfig(Config):
         if not self.CLOVER_MERCHANT_ID or not self.CLOVER_ACCESS_TOKEN:
             print("WARNING: Clover credentials not set. Clover integration will be disabled.")
         
-        # Override session settings if needed
+        # Override CORS origins if needed
         if not self.CORS_ORIGINS:
             print("WARNING: No CORS_ORIGINS set, using default origins")
             self.CORS_ORIGINS = [
                 'https://desi-delight-analytics-project-pkhf.vercel.app',
                 'https://desi-delight-analytics-project-usvt.vercel.app'
             ]
+        
+        # Log session configuration for debugging
+        print(f"🔧 Production Session Config: TYPE={self.SESSION_TYPE}, SECURE={self.SESSION_COOKIE_SECURE}, SAMESITE={self.SESSION_COOKIE_SAMESITE}")
 
 class TestingConfig(Config):
     """Testing configuration"""

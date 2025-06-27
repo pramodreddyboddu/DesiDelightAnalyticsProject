@@ -49,18 +49,6 @@ def create_app(config_name='default'):
     # Setup enhanced logging first
     logger = setup_logger(app)
     
-    # Force correct session cookie settings for cross-site cookies
-    if config_name == 'production':
-        app.config['SESSION_COOKIE_SECURE'] = True
-        app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-        app.config['SESSION_COOKIE_DOMAIN'] = None  # Let Flask set this automatically
-    else:
-        app.config['SESSION_COOKIE_SECURE'] = False
-        app.config['SESSION_COOKIE_SAMESITE'] = None
-    
-    # Log session configuration
-    logger.info(f"Session configuration: TYPE={app.config.get('SESSION_TYPE')}, SECURE={app.config.get('SESSION_COOKIE_SECURE')}, SAMESITE={app.config.get('SESSION_COOKIE_SAMESITE')}")
-    
     # Debug print for CORS origins
     print("CORS_ORIGINS at startup:", app.config['CORS_ORIGINS'])
     

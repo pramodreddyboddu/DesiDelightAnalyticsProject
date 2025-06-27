@@ -168,3 +168,51 @@ def session_info():
         }
     })
 
+@auth_bp.route('/session-debug', methods=['GET'])
+def session_debug():
+    """Comprehensive session debugging endpoint"""
+    from flask import current_app
+    
+    # Get session configuration
+    session_config = {
+        'type': current_app.config.get('SESSION_TYPE'),
+        'secure': current_app.config.get('SESSION_COOKIE_SECURE'),
+        'samesite': current_app.config.get('SESSION_COOKIE_SAMESITE'),
+        'httponly': current_app.config.get('SESSION_COOKIE_HTTPONLY'),
+        'name': current_app.config.get('SESSION_COOKIE_NAME'),
+        'path': current_app.config.get('SESSION_COOKIE_PATH'),
+        'domain': current_app.config.get('SESSION_COOKIE_DOMAIN'),
+        'permanent': current_app.config.get('SESSION_PERMANENT'),
+        'lifetime': str(current_app.config.get('PERMANENT_SESSION_LIFETIME')),
+        'refresh_each_request': current_app.config.get('SESSION_REFRESH_EACH_REQUEST'),
+        'use_signer': current_app.config.get('SESSION_USE_SIGNER'),
+        'key_prefix': current_app.config.get('SESSION_KEY_PREFIX')
+    }
+    
+    # Get request information
+    request_info = {
+        'method': request.method,
+        'url': request.url,
+        'headers': dict(request.headers),
+        'cookies': dict(request.cookies),
+        'origin': request.headers.get('Origin'),
+        'referer': request.headers.get('Referer'),
+        'user_agent': request.headers.get('User-Agent')
+    }
+    
+    # Get session information
+    session_info = {
+        'exists': bool(session),
+        'data': dict(session),
+        'id': session.sid if hasattr(session, 'sid') else 'No session ID',
+        'permanent': session.permanent if hasattr(session, 'permanent') else 'Unknown',
+        'modified': session.modified if hasattr(session, 'modified') else 'Unknown'
+    }
+    
+    return jsonify({
+        'session_config': session_config,
+        'request_info': request_info,
+        'session_info': session_info,
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
