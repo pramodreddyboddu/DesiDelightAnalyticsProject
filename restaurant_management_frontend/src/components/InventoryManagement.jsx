@@ -15,7 +15,7 @@ export const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState([]);
-  const [showClover, setShowClover] = useState(false);
+  const [showClover, setShowClover] = useState(true);
   const { error: showError } = useToast();
 
   // Use API hooks for data fetching with caching
