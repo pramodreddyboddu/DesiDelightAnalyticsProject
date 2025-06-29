@@ -8,6 +8,8 @@ from werkzeug.utils import secure_filename
 import tempfile
 import logging
 import re
+import hashlib
+import uuid
 
 upload_bp = Blueprint('upload', __name__)
 logger = logging.getLogger(__name__)
@@ -33,6 +35,13 @@ def clean_column_names(df):
         cleaned_columns.append(name)
     df.columns = cleaned_columns
     logger.info(f"Cleaned column names: {df.columns.tolist()}")
+
+def generate_short_clover_id(prefix, name, tenant_id, index):
+    """Generate a shorter, more reliable clover_id"""
+    # Create a hash of the name and tenant_id
+    hash_input = f"{name}_{tenant_id}_{index}".encode('utf-8')
+    hash_result = hashlib.md5(hash_input).hexdigest()[:12]  # Use first 12 chars of MD5
+    return f"{prefix}_{hash_result}"
 
 @upload_bp.route('/sales', methods=['POST'])
 @tenant_admin_required
@@ -83,8 +92,8 @@ def upload_sales():
                 if not item:
                     # Create new item with a unique clover_id and commit immediately
                     price = float(row.get('Item Revenue', 0.0)) if not pd.isna(row.get('Item Revenue')) else 0.0
-                    # Generate unique clover_id for item
-                    unique_clover_id = f"ITEM_{item_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
+                    # Generate shorter unique clover_id for item
+                    unique_clover_id = generate_short_clover_id("ITEM", item_name, tenant_id, index)
                     item = Item(
                         name=item_name, 
                         price=price, 
@@ -102,8 +111,8 @@ def upload_sales():
                 total_revenue = float(row.get('Total Revenue', 0.0)) if not pd.isna(row.get('Total Revenue')) else 0.0
                 item_revenue = float(row.get('Item Revenue', 0.0)) if not pd.isna(row.get('Item Revenue')) else 0.0
                 
-                # Generate unique clover_id for sale
-                sale_clover_id = f"SALE_{row.get('Order ID', 'NO_ORDER')}_{index}_{int(datetime.now().timestamp())}"
+                # Generate shorter unique clover_id for sale
+                sale_clover_id = generate_short_clover_id("SALE", f"{row.get('Order ID', 'NO_ORDER')}_{index}", tenant_id, index)
                 
                 sale = Sale(
                     clover_id=sale_clover_id,
@@ -313,8 +322,8 @@ def upload_chef_mapping():
 
                 chef = Chef.query.filter_by(name=chef_name, tenant_id=tenant_id).first()
                 if not chef:
-                    # Generate unique clover_id for chef
-                    chef_clover_id = f"CHEF_{chef_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
+                    # Generate shorter unique clover_id for chef
+                    chef_clover_id = generate_short_clover_id("CHEF", chef_name, tenant_id, index)
                     chef = Chef(name=chef_name, tenant_id=tenant_id, clover_id=chef_clover_id)
                     db.session.add(chef)
                     db.session.flush()
@@ -323,7 +332,7 @@ def upload_chef_mapping():
                 item = Item.query.filter_by(name=item_name, tenant_id=tenant_id).first()
                 if not item:
                     # Optionally create the item if it doesn't exist
-                    item_clover_id = f"ITEM_{item_name}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
+                    item_clover_id = generate_short_clover_id("ITEM", item_name, tenant_id, index)
                     item = Item(name=item_name, category='Uncategorized', tenant_id=tenant_id, clover_id=item_clover_id)
                     db.session.add(item)
                     db.session.flush()
