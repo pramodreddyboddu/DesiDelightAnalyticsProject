@@ -102,7 +102,7 @@ class CloverService:
     
     def get_items(self, category_id: str = None) -> List[Dict]:
         """Get all items, optionally filtered by category, with full pagination"""
-        params = {'limit': 1000, 'expand': 'categories'}
+        params = {'limit': 100, 'expand': 'categories'}
         if category_id:
             params['categoryId'] = category_id
         
@@ -112,10 +112,12 @@ class CloverService:
             params['offset'] = offset
             response = self._make_request('items', data=params)
             items = response.get('elements', [])
+            logger.info(f"Fetched {len(items)} items from Clover at offset {offset}")
             all_items.extend(items)
             if len(items) < params['limit']:
                 break
             offset += params['limit']
+        logger.info(f"Total items fetched from Clover: {len(all_items)}")
         return all_items
     
     def get_orders(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, limit: int = 100) -> list:
@@ -236,12 +238,21 @@ class CloverService:
     
     def get_inventory_levels(self, inventory_enabled: bool = True) -> List[Dict]:
         """Get current inventory levels. If inventory_enabled is False, skip stockCount/quantity."""
-        params = {'expand': 'categories'}
-        response = self._make_request('items', data=params)
-        items = response.get('elements', [])
-        
+        params = {'limit': 100, 'expand': 'categories'}
+        all_items = []
+        offset = 0
+        while True:
+            params['offset'] = offset
+            response = self._make_request('items', data=params)
+            items = response.get('elements', [])
+            logger.info(f"Fetched {len(items)} items from Clover at offset {offset}")
+            all_items.extend(items)
+            if len(items) < params['limit']:
+                break
+            offset += params['limit']
+        logger.info(f"Total items fetched from Clover for inventory: {len(all_items)}")
         inventory_data = []
-        for item in items:
+        for item in all_items:
             # If inventory is not enabled for this tenant, skip stockCount/quantity
             if not inventory_enabled:
                 inventory_data.append({
