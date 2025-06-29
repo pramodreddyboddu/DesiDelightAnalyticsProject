@@ -57,7 +57,7 @@ class Config:
     SESSION_REFRESH_EACH_REQUEST = True
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'plateiq_'
-    SESSION_COOKIE_DOMAIN = '.herokuapp.com'
+    SESSION_COOKIE_DOMAIN = 'plateiq-analytics-api-f6a987ab13c5.herokuapp.com'
     
     # CORS configuration
     CORS_ORIGINS = [
@@ -164,6 +164,9 @@ class ProductionConfig(Config):
     
     def __init__(self):
         super().__init__()
+        print(f"[DEBUG] SESSION_COOKIE_DOMAIN at startup: {self.SESSION_COOKIE_DOMAIN}")
+        print(f"[DEBUG] SESSION_COOKIE_SAMESITE at startup: {self.SESSION_COOKIE_SAMESITE}")
+        print(f"[DEBUG] SESSION_COOKIE_SECURE at startup: {self.SESSION_COOKIE_SECURE}")
         # Validate required environment variables only when config is used
         if not self.SECRET_KEY:
             raise ValueError("SECRET_KEY environment variable is required in production")
