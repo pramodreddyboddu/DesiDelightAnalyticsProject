@@ -12,6 +12,8 @@ from ..utils.auth import super_admin_required, admin_required
 from sqlalchemy import func, case
 import logging
 import pytz
+from flask_login import login_required, current_user
+from src.models import Chef
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -340,4 +342,38 @@ def get_system_settings():
 @super_admin_required
 def update_system_settings():
     """Update system settings"""
-    return jsonify({'message': 'System settings updated successfully'}) 
+    return jsonify({'message': 'System settings updated successfully'})
+
+@admin_bp.route('/admin/sync-chef-mappings', methods=['POST'])
+@login_required
+# You may want to add a check for tenant admin here
+def sync_chef_mappings():
+    tenant_id = getattr(current_user, 'tenant_id', None)
+    if not tenant_id:
+        return jsonify({'error': 'Tenant ID not found for user'}), 400
+
+    # Ensure 'Unassigned' chef exists for this tenant
+    unassigned_chef = Chef.query.filter_by(name='Unassigned', tenant_id=tenant_id).first()
+    if not unassigned_chef:
+        unassigned_chef = Chef(clover_id=f'unassigned_{tenant_id}', name='Unassigned', is_active=True, tenant_id=tenant_id)
+        db.session.add(unassigned_chef)
+        db.session.commit()
+
+    # Find all items for this tenant not mapped in ChefDishMapping
+    mapped_item_ids = set(m.item_id for m in ChefDishMapping.query.filter_by(tenant_id=tenant_id).all())
+    unmapped_items = Item.query.filter(Item.tenant_id==tenant_id, ~Item.id.in_(mapped_item_ids)).all()
+
+    created_count = 0
+    for item in unmapped_items:
+        mapping = ChefDishMapping(chef_id=unassigned_chef.id, item_id=item.id, is_active=True, tenant_id=tenant_id)
+        db.session.add(mapping)
+        created_count += 1
+    if created_count > 0:
+        db.session.commit()
+
+    return jsonify({
+        'status': 'success',
+        'created_mappings': created_count,
+        'unassigned_chef_id': unassigned_chef.id,
+        'tenant_id': tenant_id
+    }) 
