@@ -57,7 +57,7 @@ class Config:
     SESSION_REFRESH_EACH_REQUEST = True
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'plateiq_'
-    SESSION_COOKIE_DOMAIN = None  # Let Flask set this automatically
+    SESSION_COOKIE_DOMAIN = '.herokuapp.com'
     
     # CORS configuration
     CORS_ORIGINS = [
@@ -183,7 +183,7 @@ class ProductionConfig(Config):
             ]
         
         # Log session configuration for debugging
-        print(f"🔧 Production Session Config: TYPE={self.SESSION_TYPE}, SECURE={self.SESSION_COOKIE_SECURE}, SAMESITE={self.SESSION_COOKIE_SAMESITE}")
+        print(f"🔧 Production Session Config: TYPE={self.SESSION_TYPE}, SECURE={self.SESSION_COOKIE_SECURE}, SAMESITE={self.SESSION_COOKIE_SAMESITE}, DOMAIN={self.SESSION_COOKIE_DOMAIN}")
 
 class TestingConfig(Config):
     """Testing configuration"""
