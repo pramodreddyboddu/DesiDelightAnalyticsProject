@@ -32,7 +32,8 @@ class DashboardService:
         self._clover_inventory_cache_ttl = 600  # 10 minutes
     
     def get_data_source(self, data_type, tenant_id=None):
-        """Get the configured data source for a specific data type, using DB config if available"""
+        if data_type == 'inventory':
+            return 'clover'
         # Try DB config first
         config = None
         if tenant_id:
