@@ -312,13 +312,14 @@ def upload_chef_mapping():
             try:
                 chef_name = row.get('chef_name')
                 item_name = row.get('item_name')
+                clover_item_id = row.get('clover_id')  # Optional Clover ID column
                 
                 # Skip rows with NaN or empty values
                 if pd.isna(chef_name) or pd.isna(item_name) or not chef_name or not item_name:
                     logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}'")
                     continue
 
-                logger.info(f"Processing row {index}: chef='{chef_name}', item='{item_name}'")
+                logger.info(f"Processing row {index}: chef='{chef_name}', item='{item_name}', clover_id='{clover_item_id}'")
 
                 chef = Chef.query.filter_by(name=chef_name, tenant_id=tenant_id).first()
                 if not chef:
@@ -329,10 +330,29 @@ def upload_chef_mapping():
                     db.session.flush()
                     logger.info(f"Created new chef: {chef_name} with ID: {chef.id}")
 
-                item = Item.query.filter_by(name=item_name, tenant_id=tenant_id).first()
+                # Try to find item by clover_id first, then by name
+                item = None
+                if clover_item_id and not pd.isna(clover_item_id):
+                    # Try to find by clover_id first
+                    item = Item.query.filter_by(clover_id=str(clover_item_id), tenant_id=tenant_id).first()
+                    if item:
+                        logger.info(f"Found item by clover_id: {clover_item_id} -> {item.name}")
+                
                 if not item:
-                    # Optionally create the item if it doesn't exist
-                    item_clover_id = generate_short_clover_id("ITEM", item_name, tenant_id, index)
+                    # Try to find by name
+                    item = Item.query.filter_by(name=item_name, tenant_id=tenant_id).first()
+                    if item:
+                        logger.info(f"Found item by name: {item_name}")
+                
+                if not item:
+                    # Create new item - use clover_id if provided, otherwise generate one
+                    if clover_item_id and not pd.isna(clover_item_id):
+                        item_clover_id = str(clover_item_id)
+                        logger.info(f"Creating new item with provided clover_id: {item_clover_id}")
+                    else:
+                        item_clover_id = generate_short_clover_id("ITEM", item_name, tenant_id, index)
+                        logger.info(f"Creating new item with generated clover_id: {item_clover_id}")
+                    
                     item = Item(name=item_name, category='Uncategorized', tenant_id=tenant_id, clover_id=item_clover_id)
                     db.session.add(item)
                     db.session.flush()

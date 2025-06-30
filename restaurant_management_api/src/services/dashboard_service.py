@@ -1198,6 +1198,8 @@ class DashboardService:
             logging.info("Getting chef performance data from Clover sales + local chef mappings")
             # Get all items from local DB (id, clover_id)
             item_id_map = {item.clover_id: item.id for item in db.session.query(Item).all()}
+            # Also create a name-based mapping as fallback
+            item_name_map = {item.name.strip().lower(): item.id for item in db.session.query(Item).all()}
             # Get chef mappings from local database (always local)
             chef_mappings = db.session.query(ChefDishMapping).all()
             item_to_chef = {mapping.item_id: mapping.chef_id for mapping in chef_mappings}
@@ -1229,11 +1231,21 @@ class DashboardService:
                 for line_item in line_items:
                     item = line_item.get('item', {})
                     clover_item_id = item.get('id')
-                    # Map Clover item_id to local Item.id
+                    item_name = item.get('name', 'Unknown')
+                    
+                    # Try to map Clover item_id to local Item.id
                     local_item_id = item_id_map.get(clover_item_id)
+                    
+                    # If clover_id mapping fails, try name-based mapping as fallback
                     if not local_item_id:
-                        unmapped_items.add(clover_item_id)
+                        local_item_id = item_name_map.get(item_name.strip().lower())
+                        if local_item_id:
+                            logging.info(f"Matched item '{item_name}' by name (clover_id mapping failed)")
+                    
+                    if not local_item_id:
+                        unmapped_items.add(f"{clover_item_id}:{item_name}")
                         continue  # No local mapping for this Clover item
+                    
                     # Extract category from item.categories
                     cat = 'Uncategorized'
                     categories = item.get('categories', {}).get('elements', [])
@@ -1245,7 +1257,7 @@ class DashboardService:
                     # Find which chef is responsible for this item (using local item_id)
                     chef_id = item_to_chef.get(local_item_id)
                     if not chef_id or chef_id not in chefs:
-                        unmapped_items.add(clover_item_id)
+                        unmapped_items.add(f"{clover_item_id}:{item_name}")
                         continue  # Skip items not mapped to chefs or filtered chefs
                     chef_name = chefs[chef_id]
                     # Revenue extraction: use total if present and >0, else price * quantity
@@ -1263,7 +1275,6 @@ class DashboardService:
                     # Update chef performance
                     if chef_name not in chef_performance:
                         chef_performance[chef_name] = {}
-                    item_name = item.get('name', 'Unknown')
                     if item_name not in chef_performance[chef_name]:
                         chef_performance[chef_name][item_name] = {
                             'chef_name': chef_name,
