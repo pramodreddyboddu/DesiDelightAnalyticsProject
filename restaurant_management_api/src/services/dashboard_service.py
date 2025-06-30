@@ -383,8 +383,10 @@ class DashboardService:
             }
     
     def _get_local_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None):
-        """Get chef performance data from local database"""
+        """Get chef performance data from local database, excluding 'Unassigned' chef and reporting unmapped items."""
         try:
+            # Exclude 'Unassigned' chef
+            real_chefs = db.session.query(Chef.id).filter(Chef.name != 'Unassigned').subquery()
             # Build base query for chef performance
             query = db.session.query(
                 Chef.name.label('chef_name'),
@@ -392,10 +394,10 @@ class DashboardService:
                 Item.category,
                 func.sum(Sale.total_revenue).label('revenue'),
                 func.count(Sale.id).label('count')
-            ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)\
-             .join(Item, ChefDishMapping.item_id == Item.id)\
+            ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)
+             .join(Item, ChefDishMapping.item_id == Item.id)
              .join(Sale, Item.id == Sale.item_id)
-            
+             .filter(Chef.id.in_(real_chefs))
             # Apply filters
             if start_date:
                 query = query.filter(Sale.line_item_date >= start_date)
@@ -408,20 +410,18 @@ class DashboardService:
                 except ValueError:
                     logging.error(f"Invalid chef_ids format: {chef_ids}")
                     return {'error': 'Invalid chef_ids format'}
-            
             # Group by chef and item
             chef_performance = query.group_by(Chef.id, Chef.name, Item.id, Item.name, Item.category).all()
-            
             # Get chef summary
             chef_summary = db.session.query(
                 Chef.id,
                 Chef.name,
                 func.sum(Sale.total_revenue).label('total_revenue'),
                 func.count(Sale.id).label('total_sales')
-            ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)\
-             .join(Item, ChefDishMapping.item_id == Item.id)\
+            ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)
+             .join(Item, ChefDishMapping.item_id == Item.id)
              .join(Sale, Item.id == Sale.item_id)
-            
+             .filter(Chef.id.in_(real_chefs))
             # Apply the same filters to summary
             if start_date:
                 chef_summary = chef_summary.filter(Sale.line_item_date >= start_date)
@@ -433,9 +433,15 @@ class DashboardService:
                     chef_summary = chef_summary.filter(Chef.id.in_(chef_id_list))
                 except ValueError:
                     pass
-            
             chef_summary = chef_summary.group_by(Chef.id, Chef.name).all()
-            
+            # Find unmapped items with sales
+            mapped_item_ids = set(row[0] for row in db.session.query(ChefDishMapping.item_id).all())
+            sales_items = set(row[0] for row in db.session.query(Sale.item_id).all())
+            unmapped_items = sales_items - mapped_item_ids
+            unmapped_items_count = len(unmapped_items)
+            warning = None
+            if unmapped_items_count > 0:
+                warning = f"There are {unmapped_items_count} items with sales that are not mapped to any chef. Please update your chef mapping file."
             return {
                 'chef_performance': [
                     {
@@ -455,14 +461,17 @@ class DashboardService:
                         'total_sales': total_sales
                     }
                     for chef_id, chef_name, total_revenue, total_sales in chef_summary
-                ]
+                ],
+                'unmapped_items_warning': warning,
+                'unmapped_items_count': unmapped_items_count
             }
-            
         except Exception as e:
             logging.error(f"Error getting chef performance data: {str(e)}")
             return {
                 'chef_performance': [],
-                'chef_summary': []
+                'chef_summary': [],
+                'unmapped_items_warning': str(e),
+                'unmapped_items_count': 0
             }
     
     def _empty_sales_summary(self):
@@ -1179,7 +1188,7 @@ class DashboardService:
             }
 
     def _get_clover_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None, category=None):
-        """Get chef performance data using Clover sales data and local chef mappings, with optional category filter"""
+        """Get chef performance data using Clover sales data and local chef mappings, with optional category filter, excluding 'Unassigned' chef and reporting unmapped items."""
         try:
             logging.info("Getting chef performance data from Clover sales + local chef mappings")
             # Get all items from local DB (id, clover_id)
@@ -1187,13 +1196,14 @@ class DashboardService:
             # Get chef mappings from local database (always local)
             chef_mappings = db.session.query(ChefDishMapping).all()
             item_to_chef = {mapping.item_id: mapping.chef_id for mapping in chef_mappings}
-            # Get all chefs for reference
-            chefs = {chef.id: chef.name for chef in Chef.query.all()}
+            # Get all real chefs (exclude 'Unassigned')
+            real_chefs = {chef.id: chef.name for chef in Chef.query.filter(Chef.name != 'Unassigned').all()}
             # Filter chefs if specified
+            chefs = real_chefs.copy()
             if chef_ids and chef_ids != 'all':
                 try:
                     chef_id_list = [int(id_str) for id_str in chef_ids.split(',')]
-                    chefs = {k: v for k, v in chefs.items() if k in chef_id_list}
+                    chefs = {k: v for k, v in real_chefs.items() if k in chef_id_list}
                 except ValueError:
                     logging.warning(f"Invalid chef_ids format: {chef_ids}")
             # Get orders from Clover
@@ -1208,6 +1218,7 @@ class DashboardService:
             # Process orders to get chef performance
             chef_performance = {}
             chef_summary = {}
+            unmapped_items = set()
             for order in orders:
                 line_items = order.get('lineItems', {}).get('elements', [])
                 for line_item in line_items:
@@ -1216,6 +1227,7 @@ class DashboardService:
                     # Map Clover item_id to local Item.id
                     local_item_id = item_id_map.get(clover_item_id)
                     if not local_item_id:
+                        unmapped_items.add(clover_item_id)
                         continue  # No local mapping for this Clover item
                     # Extract category from item.categories
                     cat = 'Uncategorized'
@@ -1228,6 +1240,7 @@ class DashboardService:
                     # Find which chef is responsible for this item (using local item_id)
                     chef_id = item_to_chef.get(local_item_id)
                     if not chef_id or chef_id not in chefs:
+                        unmapped_items.add(clover_item_id)
                         continue  # Skip items not mapped to chefs or filtered chefs
                     chef_name = chefs[chef_id]
                     # Revenue extraction: use total if present and >0, else price * quantity
@@ -1285,10 +1298,16 @@ class DashboardService:
                     'dishes': dishes
                 })
             summary_list = list(chef_summary.values())
+            warning = None
+            unmapped_items_count = len(unmapped_items)
+            if unmapped_items_count > 0:
+                warning = f"There are {unmapped_items_count} items with sales that are not mapped to any chef. Please update your chef mapping file."
             logging.info(f"Clover chef performance: {len(chef_performance_grouped)} chefs, {sum(len(c['dishes']) for c in chef_performance_grouped)} items")
             return {
                 'chef_performance': chef_performance_grouped,
-                'chef_summary': summary_list
+                'chef_summary': summary_list,
+                'unmapped_items_warning': warning,
+                'unmapped_items_count': unmapped_items_count
             }
         except Exception as e:
             logging.error(f"Error getting Clover chef performance data: {str(e)}")

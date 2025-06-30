@@ -1,0 +1,30 @@
+* [33m3c5fb85[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;31mheroku/main[m[33m)[m Fix: Set SESSION_COOKIE_DOMAIN to 'plateiq-analytics-api-f6a987ab13c5.herokuapp.com' for cross-origin session support
+* [33m3cc15a1[m Fix: Set SESSION_COOKIE_DOMAIN to .herokuapp.com for cross-origin session support
+* [33m7be3d81[m feat: Add toggle to Inventory Management to view Clover or local inventory change
+* [33m1ac5ed7[m feat: Add toggle to Inventory Management to view Clover or local inventory
+* [33mc7e2871[m Fix double /api/ prefix in all API calls; ensure correct upload endpoints
+* [33m83769f0[m dummy
+* [33m8616176[m fix: remove leading /api/ from auth/me and auth/login API calls for correct base URL usage
+* [33m9a18514[m fix: remove leading /api/ from all API calls for correct base URL usage
+* [33m89c3e42[m Update CORS origins: add main Vercel domain, remove unused ones
+* [33mae1df50[m Fix all API endpoints: add missing /api/ prefix to all fetch calls and useApiData/useApiMutation hooks
+* [33m3f24c9e[m Fix main.py: remove duplicate app creation and unused imports
+* [33m2c0100d[m Frontend: Add robust joinUrl helper for all API endpoint calls
+* [33m85ac0be[m Frontend: Fix all API endpoint usages to use relative paths for robust /api/ prefix handling
+* [33m21a660d[m Frontend: Use /api/ prefix for all API endpoints for robust backend compatibility
+* [33m6cdba3d[m Use FLASK_CONFIG env var for config selection, default to production
+* [33mdaac1a6[m Fix session configuration for cross-origin requests - permanent solution
+* [33mb606016[m Fix logger initialization order
+* [33m33e05f1[m Fix session configuration for production - improve Redis fallback and add debugging endpoints
+* [33m00534cc[m Fix production deployment issues: Remove duplicate URL prefixes from blueprints, update CORS configuration, improve session handling, and add debug endpoint
+* [33m9725315[m updated  CORS preflight
+* [33mba7a17b[m updated  CORS-enabled for your Vercel frontend
+* [33mf8bf49e[m updated main.py udpated
+* [33m01aeb54[m updated cors udpated
+* [33m10755dd[m updated cors udpatedin main
+* [33mc068155[m updated cors
+* [33m5acdf0d[m debug: add session logging and test-session route for production session troubleshooting
+* [33m943a1ab[m fix: disable SSL cert verification for Heroku Redis session
+* [33m6ebddb9[m fix: use Redis for session storage on Heroku
+* [33m05e8a66[m fix: remove SESSION_COOKIE_DOMAIN and add debug print for login response headers
+* [33m8842d31[m fix: robust CORS for Vercel frontend, always set all CORS headers
