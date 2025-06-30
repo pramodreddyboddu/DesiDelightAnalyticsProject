@@ -1,6 +1,9 @@
 from flask import Blueprint, request, jsonify, session, current_app, make_response
 from ..models import db
 from ..models.user import User
+from ..models.chef import Chef
+from ..models.item import Item
+from ..models.chef_dish_mapping import ChefDishMapping
 from ..utils.auth import login_required, admin_required
 from werkzeug.security import check_password_hash, generate_password_hash
 import os
@@ -9,6 +12,48 @@ import logging
 from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
+
+def sync_chef_mappings_for_tenant(tenant_id):
+    """Helper function to sync chef mappings for a tenant"""
+    try:
+        if not tenant_id:
+            current_app.logger.warning("No tenant_id provided for chef mapping sync")
+            return {'status': 'skipped', 'reason': 'no_tenant_id'}
+
+        # Ensure 'Unassigned' chef exists for this tenant
+        unassigned_chef = Chef.query.filter_by(name='Unassigned', tenant_id=tenant_id).first()
+        if not unassigned_chef:
+            unassigned_chef = Chef(clover_id=f'unassigned_{tenant_id}', name='Unassigned', is_active=True, tenant_id=tenant_id)
+            db.session.add(unassigned_chef)
+            db.session.commit()
+            current_app.logger.info(f"Created 'Unassigned' chef for tenant {tenant_id}")
+
+        # Find all items for this tenant not mapped in ChefDishMapping
+        mapped_item_ids = set(m.item_id for m in ChefDishMapping.query.filter_by(tenant_id=tenant_id).all())
+        unmapped_items = Item.query.filter(Item.tenant_id==tenant_id, ~Item.id.in_(mapped_item_ids)).all()
+
+        created_count = 0
+        for item in unmapped_items:
+            mapping = ChefDishMapping(chef_id=unassigned_chef.id, item_id=item.id, is_active=True, tenant_id=tenant_id)
+            db.session.add(mapping)
+            created_count += 1
+        
+        if created_count > 0:
+            db.session.commit()
+            current_app.logger.info(f"Auto-synced {created_count} chef mappings for tenant {tenant_id}")
+        else:
+            current_app.logger.debug(f"No new chef mappings needed for tenant {tenant_id}")
+
+        return {
+            'status': 'success',
+            'created_mappings': created_count,
+            'unassigned_chef_id': unassigned_chef.id,
+            'tenant_id': tenant_id
+        }
+    except Exception as e:
+        current_app.logger.error(f"Error in auto chef mapping sync for tenant {tenant_id}: {str(e)}")
+        db.session.rollback()
+        return {'status': 'error', 'error': str(e)}
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -37,6 +82,15 @@ def login():
 
         # Debug: log session after login
         current_app.logger.info(f"Session after login: {dict(session)}")
+
+        # Auto-sync chef mappings for the tenant (non-blocking)
+        if user.tenant_id:
+            try:
+                sync_result = sync_chef_mappings_for_tenant(user.tenant_id)
+                current_app.logger.info(f"Auto chef mapping sync result: {sync_result}")
+            except Exception as sync_error:
+                current_app.logger.error(f"Auto chef mapping sync failed: {str(sync_error)}")
+                # Don't fail login if sync fails
 
         # Only log successful login
         current_app.logger.warning(f'User {username} logged in successfully')
