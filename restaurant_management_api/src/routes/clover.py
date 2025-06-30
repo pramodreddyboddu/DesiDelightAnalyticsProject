@@ -18,6 +18,7 @@ def require_api_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         key = request.headers.get('X-API-KEY')
+        print(f"API KEY RECEIVED: {key}")  # Debug log
         if key and key == API_KEY:
             return f(*args, **kwargs)
         return jsonify({"error": "Unauthorized"}), 401
@@ -52,7 +53,6 @@ def get_clover_status():
 
 @clover_bp.route('/sync/sales', methods=['POST'])
 @require_api_key
-@admin_required
 def sync_sales():
     """Sync sales data from Clover to local database"""
     try:
@@ -83,7 +83,6 @@ def sync_sales():
 
 @clover_bp.route('/sync/inventory', methods=['POST'])
 @require_api_key
-@admin_required
 def sync_inventory():
     """Sync inventory data from Clover to local database"""
     try:
@@ -270,7 +269,6 @@ def get_categories():
 
 @clover_bp.route('/sync/all', methods=['POST'])
 @require_api_key
-@admin_required
 def sync_all():
     """Sync all data from Clover to local database"""
     try:
