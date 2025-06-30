@@ -6,8 +6,13 @@ from flask_cors import CORS
 def create_app():
     app = Flask(__name__)
     # ... existing config ...
-    CORS(app, supports_credentials=True, origins=[
-        'https://desi-delight-analytics-project.vercel.app'
-    ], allow_headers=['Content-Type', 'X-API-KEY'])
+    CORS(
+        app,
+        supports_credentials=True,
+        origins=['https://desi-delight-analytics-project.vercel.app'],
+        allow_headers=['Content-Type', 'X-API-KEY', 'Authorization'],
+        expose_headers=['Content-Type', 'Authorization'],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
     # ... rest of app setup ...
     return app
