@@ -97,10 +97,14 @@ class DashboardService:
         If sales data source is 'local', use local database.
         """
         data_source = self.get_data_source('sales')
+        logging.info(f"Chef performance data source: {data_source}")
+        
         if data_source == 'clover':
+            logging.info("Using Clover API for chef performance data")
             # Use live Clover API for real-time chef performance data
             return self._get_clover_chef_performance_data(start_date, end_date, chef_ids)
         else:
+            logging.info("Using local database for chef performance data")
             # Use local database for chef performance data
             return self._get_local_chef_performance_data(start_date, end_date, chef_ids)
     
