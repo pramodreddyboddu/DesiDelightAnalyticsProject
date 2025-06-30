@@ -64,10 +64,15 @@ def get_chef_performance():
     print("=== CHEF PERFORMANCE ROUTE CALLED ===")
     logging.info("=== CHEF PERFORMANCE ROUTE CALLED ===")
     try:
+        print("Getting query parameters...")
         # Get query parameters
         start_date = parse_date(request.args.get('start_date'))
         end_date = parse_date(request.args.get('end_date'), is_end=True)
         chef_ids = request.args.get('chef_ids')
+        
+        print(f"Query parameters - start_date: {request.args.get('start_date')}, parsed: {start_date}")
+        print(f"Query parameters - end_date: {request.args.get('end_date')}, parsed: {end_date}")
+        print(f"Query parameters - chef_ids: {chef_ids}")
         
         # Debug logging
         logging.info(f"Chef performance request - start_date: {request.args.get('start_date')}, parsed: {start_date}")
@@ -75,13 +80,16 @@ def get_chef_performance():
         logging.info(f"Chef performance request - chef_ids: {chef_ids}")
         
         # Use dashboard service to get chef performance data
+        print("About to call dashboard_service.get_chef_performance_data")
         logging.info("About to call dashboard_service.get_chef_performance_data")
         chef_data = dashboard_service.get_chef_performance_data(start_date, end_date, chef_ids)
+        print(f"Chef performance data returned: {type(chef_data)}")
         logging.info(f"Chef performance data returned: {type(chef_data)}")
         
         return jsonify(chef_data), 200
         
     except Exception as e:
+        print(f"Error in chef performance: {str(e)}")
         logging.error(f"Error in chef performance: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
