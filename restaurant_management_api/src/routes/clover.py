@@ -7,9 +7,21 @@ from src.models.item import Item
 import logging
 from datetime import datetime, timedelta
 import os
+from functools import wraps
 
 clover_bp = Blueprint('clover', __name__)
 logger = logging.getLogger(__name__)
+
+API_KEY = os.getenv('SYNC_API_KEY', 'supersecretkey1234567890')
+
+def require_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        key = request.headers.get('X-API-KEY')
+        if key and key == API_KEY:
+            return f(*args, **kwargs)
+        return jsonify({"error": "Unauthorized"}), 401
+    return decorated
 
 def get_clover_service():
     """Get Clover service instance"""
@@ -39,6 +51,7 @@ def get_clover_status():
         }), 500
 
 @clover_bp.route('/sync/sales', methods=['POST'])
+@require_api_key
 @admin_required
 def sync_sales():
     """Sync sales data from Clover to local database"""
@@ -69,6 +82,7 @@ def sync_sales():
         }), 500
 
 @clover_bp.route('/sync/inventory', methods=['POST'])
+@require_api_key
 @admin_required
 def sync_inventory():
     """Sync inventory data from Clover to local database"""
@@ -255,6 +269,7 @@ def get_categories():
         }), 500
 
 @clover_bp.route('/sync/all', methods=['POST'])
+@require_api_key
 @admin_required
 def sync_all():
     """Sync all data from Clover to local database"""
