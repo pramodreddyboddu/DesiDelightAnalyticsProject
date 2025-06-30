@@ -61,6 +61,7 @@ def get_sales_summary():
 @dashboard_bp.route('/chef-performance', methods=['GET'])
 @login_required
 def get_chef_performance():
+    logging.info("=== CHEF PERFORMANCE ROUTE CALLED ===")
     try:
         # Get query parameters
         start_date = parse_date(request.args.get('start_date'))
