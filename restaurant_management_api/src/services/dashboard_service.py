@@ -1104,23 +1104,8 @@ class DashboardService:
         data_source = self.get_data_source('sales')
         logging.info(f"Getting staff performance from sales data source: {data_source}")
         if data_source == 'clover':
-            # Use Clover orders for sales, local DB for chef mapping
-            orders = self.clover_service.get_orders(start_date, end_date)
-            chef_map = {m.item_id: m.chef_id for m in db.session.query(ChefDishMapping).all()}
-            staff_perf = {}
-            for order in orders:
-                emp_id = order.get('employee', {}).get('id', 'unknown')
-                line_items = order.get('lineItems', {}).get('elements', [])
-                for li in line_items:
-                    item_id = li.get('item', {}).get('id')
-                    chef_id = chef_map.get(item_id)
-                    if not chef_id:
-                        continue
-                    if chef_id not in staff_perf:
-                        staff_perf[chef_id] = {'revenue': 0, 'count': 0}
-                    staff_perf[chef_id]['revenue'] += float(li.get('total', 0)) / 100
-                    staff_perf[chef_id]['count'] += li.get('quantity', 1)
-            return staff_perf
+            # Use the same logic as chef performance data for consistency
+            return self._get_clover_chef_performance_data(start_date, end_date)
         else:
             # Use local DB
             return self._get_local_chef_performance_data(start_date, end_date)
