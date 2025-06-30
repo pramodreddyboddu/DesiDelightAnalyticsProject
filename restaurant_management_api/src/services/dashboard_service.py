@@ -1193,13 +1193,11 @@ class DashboardService:
             }
 
     def _get_clover_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None, category=None):
-        """Get chef performance data using Clover sales data and local chef mappings, with optional category filter, excluding 'Unassigned' chef and reporting unmapped items."""
+        """Get chef performance data using Clover sales data and local chef mappings, with optional category filter, excluding 'Unassigned' chef and reporting unmapped items. Only use clover_id for mapping."""
         try:
-            logging.info("Getting chef performance data from Clover sales + local chef mappings")
+            logging.info("Getting chef performance data from Clover sales + local chef mappings (clover_id only)")
             # Get all items from local DB (id, clover_id)
             item_id_map = {item.clover_id: item.id for item in db.session.query(Item).all()}
-            # Also create a name-based mapping as fallback
-            item_name_map = {item.name.strip().lower(): item.id for item in db.session.query(Item).all()}
             # Get chef mappings from local database (always local)
             chef_mappings = db.session.query(ChefDishMapping).all()
             item_to_chef = {mapping.item_id: mapping.chef_id for mapping in chef_mappings}
@@ -1232,20 +1230,14 @@ class DashboardService:
                     item = line_item.get('item', {})
                     clover_item_id = item.get('id')
                     item_name = item.get('name', 'Unknown')
-                    
-                    # Try to map Clover item_id to local Item.id
+
+                    # Only use clover_id for mapping
                     local_item_id = item_id_map.get(clover_item_id)
-                    
-                    # If clover_id mapping fails, try name-based mapping as fallback
-                    if not local_item_id:
-                        local_item_id = item_name_map.get(item_name.strip().lower())
-                        if local_item_id:
-                            logging.info(f"Matched item '{item_name}' by name (clover_id mapping failed)")
-                    
                     if not local_item_id:
                         unmapped_items.add(f"{clover_item_id}:{item_name}")
+                        logging.info(f"Unmapped item: clover_id {clover_item_id}, name '{item_name}' not found in local item_id_map.")
                         continue  # No local mapping for this Clover item
-                    
+
                     # Extract category from item.categories
                     cat = 'Uncategorized'
                     categories = item.get('categories', {}).get('elements', [])
@@ -1314,16 +1306,10 @@ class DashboardService:
                     'dishes': dishes
                 })
             summary_list = list(chef_summary.values())
-            warning = None
-            unmapped_items_count = len(unmapped_items)
-            if unmapped_items_count > 0:
-                warning = f"There are {unmapped_items_count} items with sales that are not mapped to any chef. Please update your chef mapping file."
             logging.info(f"Clover chef performance: {len(chef_performance_grouped)} chefs, {sum(len(c['dishes']) for c in chef_performance_grouped)} items")
             return {
                 'chef_performance': chef_performance_grouped,
-                'chef_summary': summary_list,
-                'unmapped_items_warning': warning,
-                'unmapped_items_count': unmapped_items_count
+                'chef_summary': summary_list
             }
         except Exception as e:
             logging.error(f"Error getting Clover chef performance data: {str(e)}")
