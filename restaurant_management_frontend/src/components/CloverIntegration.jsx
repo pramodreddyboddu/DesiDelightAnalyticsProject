@@ -128,7 +128,7 @@ export const CloverIntegration = () => {
   } = useRateLimitedApi(`${API_BASE_URL}/clover/customers`);
   
   // Sync mutations
-  const { mutate: syncSales, loading: salesSyncLoading } = useApiMutation('/api/clover/sync/sales', {
+  const { mutate: syncSales, loading: salesSyncLoading } = useApiMutation('/clover/sync/sales', {
     onSuccess: () => {
       success('Sales Sync Complete', 'Sales data has been successfully synchronized from Clover');
       fetchRealtime();
@@ -138,7 +138,7 @@ export const CloverIntegration = () => {
     }
   });
 
-  const { mutate: syncInventory, loading: inventorySyncLoading } = useApiMutation('/api/clover/sync/inventory', {
+  const { mutate: syncInventory, loading: inventorySyncLoading } = useApiMutation('/clover/sync/inventory', {
     onSuccess: () => {
       success('Inventory Sync Complete', 'Inventory data has been successfully synchronized from Clover');
       fetchInventory();
@@ -148,7 +148,7 @@ export const CloverIntegration = () => {
     }
   });
 
-  const { mutate: syncAll, loading: allSyncLoading } = useApiMutation('/api/clover/sync/all', {
+  const { mutate: syncAll, loading: allSyncLoading } = useApiMutation('/clover/sync/all', {
     onSuccess: () => {
       success('Full Sync Complete', 'All data has been successfully synchronized from Clover');
       fetchStatus();
