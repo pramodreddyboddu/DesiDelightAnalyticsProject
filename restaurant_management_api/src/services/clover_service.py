@@ -283,7 +283,7 @@ class CloverService:
         return category
     
     def sync_sales_data(self, start_date: datetime = None, end_date: datetime = None) -> Dict:
-        """Sync sales data from Clover to local database (Read-Only)"""
+        """Sync sales data from Clover to local database (Read-Only) with robust logging"""
         if not start_date:
             start_date = datetime.now() - timedelta(days=30)
         if not end_date:
@@ -295,6 +295,17 @@ class CloverService:
             
             synced_count = 0
             error_count = 0
+            skipped_count = 0
+            skipped_reasons = {}
+            unmapped_items = set()
+            not_mapped_to_chef = set()
+            rate_limit_hits = 0
+            total_processed = 0
+            
+            # Build item and chef mappings for logging
+            item_id_map = {item.clover_id: item.id for item in db.session.query(Item).all()}
+            chef_mappings = db.session.query(ChefDishMapping).all()
+            item_to_chef = {mapping.item_id: mapping.chef_id for mapping in chef_mappings}
             
             for order in orders:
                 try:
@@ -303,6 +314,7 @@ class CloverService:
                     
                     # Process line items
                     for line_item in order_details.get('line_items', []):
+                        total_processed += 1
                         sale_data = {
                             'clover_id': line_item['id'],
                             'item_id': line_item.get('item', {}).get('id'),
@@ -319,28 +331,71 @@ class CloverService:
                             'item_total_with_tax': float(line_item.get('total', 0)) / 100,
                             'payment_state': order.get('state', 'unknown')
                         }
-                        
+                        clover_item_id = sale_data['item_id']
+                        item_name = line_item.get('item', {}).get('name', 'Unknown')
+                        # Skip if quantity is 0
+                        if sale_data['quantity'] == 0:
+                            skipped_count += 1
+                            skipped_reasons.setdefault('zero_quantity', 0)
+                            skipped_reasons['zero_quantity'] += 1
+                            logger.info(f"Skipped sale (zero quantity): {sale_data}")
+                            continue
+                        # Skip if total_revenue is 0
+                        if sale_data['total_revenue'] == 0:
+                            skipped_count += 1
+                            skipped_reasons.setdefault('zero_revenue', 0)
+                            skipped_reasons['zero_revenue'] += 1
+                            logger.info(f"Skipped sale (zero revenue): {sale_data}")
+                            continue
+                        # Check if item is mapped in local DB
+                        local_item_id = item_id_map.get(clover_item_id)
+                        if not local_item_id:
+                            skipped_count += 1
+                            skipped_reasons.setdefault('unmapped_item', 0)
+                            skipped_reasons['unmapped_item'] += 1
+                            unmapped_items.add(f"{clover_item_id}:{item_name}")
+                            logger.info(f"Skipped sale (unmapped item): clover_id {clover_item_id}, name '{item_name}'")
+                            continue
+                        # Check if item is mapped to a chef
+                        chef_id = item_to_chef.get(local_item_id)
+                        if not chef_id:
+                            skipped_count += 1
+                            skipped_reasons.setdefault('not_mapped_to_chef', 0)
+                            skipped_reasons['not_mapped_to_chef'] += 1
+                            not_mapped_to_chef.add(f"{clover_item_id}:{item_name}")
+                            logger.info(f"Skipped sale (item not mapped to chef): clover_id {clover_item_id}, name '{item_name}'")
+                            continue
                         # Check if sale already exists
                         existing_sale = db.session.query(Sale).filter_by(clover_id=sale_data['clover_id']).first()
                         if not existing_sale:
                             sale = Sale(**sale_data)
                             db.session.add(sale)
                             synced_count += 1
-                    
                     db.session.commit()
-                    
                 except Exception as e:
                     logger.error(f"Error syncing order {order['id']}: {e}")
                     error_count += 1
                     db.session.rollback()
-            
+            logger.info(f"=== Clover Sales Sync Summary ===")
+            logger.info(f"Total line items processed: {total_processed}")
+            logger.info(f"Total sales synced: {synced_count}")
+            logger.info(f"Total sales skipped: {skipped_count}")
+            logger.info(f"Skipped reasons: {skipped_reasons}")
+            if unmapped_items:
+                logger.info(f"Unmapped Clover items: {sorted(unmapped_items)}")
+            if not_mapped_to_chef:
+                logger.info(f"Items not mapped to chef: {sorted(not_mapped_to_chef)}")
+            logger.info(f"Total errors: {error_count}")
             return {
                 'status': 'success',
                 'synced_count': synced_count,
                 'error_count': error_count,
-                'total_orders': len(orders)
+                'skipped_count': skipped_count,
+                'skipped_reasons': skipped_reasons,
+                'unmapped_items': sorted(unmapped_items),
+                'not_mapped_to_chef': sorted(not_mapped_to_chef),
+                'total_processed': total_processed
             }
-            
         except Exception as e:
             logger.error(f"Sales sync failed: {e}")
             return {
