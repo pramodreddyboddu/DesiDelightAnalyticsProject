@@ -388,16 +388,19 @@ class DashboardService:
             # Exclude 'Unassigned' chef
             real_chefs = db.session.query(Chef.id).filter(Chef.name != 'Unassigned').subquery()
             # Build base query for chef performance
-            query = db.session.query(
-                Chef.name.label('chef_name'),
-                Item.name.label('item_name'),
-                Item.category,
-                func.sum(Sale.total_revenue).label('revenue'),
-                func.count(Sale.id).label('count')
-            ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)
-             .join(Item, ChefDishMapping.item_id == Item.id)
-             .join(Sale, Item.id == Sale.item_id)
-             .filter(Chef.id.in_(real_chefs))
+            query = (
+                db.session.query(
+                    Chef.name.label('chef_name'),
+                    Item.name.label('item_name'),
+                    Item.category,
+                    func.sum(Sale.total_revenue).label('revenue'),
+                    func.count(Sale.id).label('count')
+                )
+                .join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)
+                .join(Item, ChefDishMapping.item_id == Item.id)
+                .join(Sale, Item.id == Sale.item_id)
+                .filter(Chef.id.in_(real_chefs))
+            )
             # Apply filters
             if start_date:
                 query = query.filter(Sale.line_item_date >= start_date)
@@ -418,10 +421,11 @@ class DashboardService:
                 Chef.name,
                 func.sum(Sale.total_revenue).label('total_revenue'),
                 func.count(Sale.id).label('total_sales')
-            ).join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)
-             .join(Item, ChefDishMapping.item_id == Item.id)
-             .join(Sale, Item.id == Sale.item_id)
-             .filter(Chef.id.in_(real_chefs))
+            )\
+            .join(ChefDishMapping, Chef.id == ChefDishMapping.chef_id)\
+            .join(Item, ChefDishMapping.item_id == Item.id)\
+            .join(Sale, Item.id == Sale.item_id)\
+            .filter(Chef.id.in_(real_chefs))
             # Apply the same filters to summary
             if start_date:
                 chef_summary = chef_summary.filter(Sale.line_item_date >= start_date)
