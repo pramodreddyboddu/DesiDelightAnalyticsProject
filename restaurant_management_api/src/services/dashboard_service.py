@@ -91,16 +91,18 @@ class DashboardService:
         return result
     
     def get_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None):
-        """Get chef performance data using configured data sources"""
+        """
+        Best Practice: Always use local database for chef/staff performance analytics.
+        This ensures fast, scalable, and reliable analytics using SQL joins with chef mappings.
+        Do NOT use live Clover API for this purpose.
+        """
         data_source = self.get_data_source('sales')
-        logging.info(f"Getting chef performance data with sales source: {data_source}")
-        
         if data_source == 'clover':
-            result = self._get_clover_chef_performance_data(start_date, end_date, chef_ids)
+            # ENFORCE: Only use local DB for chef performance analytics
+            # If sales are not synced, this will return zeroes (as expected)
+            return self._get_local_chef_performance_data(start_date, end_date, chef_ids)
         else:
-            result = self._get_local_chef_performance_data(start_date, end_date, chef_ids)
-        logging.info(f"Chef performance result: {json.dumps(result, default=str)}")
-        return result
+            return self._get_local_chef_performance_data(start_date, end_date, chef_ids)
     
     def _get_clover_sales_summary(self, start_date=None, end_date=None, category=None):
         """Get sales summary from Clover API"""
@@ -1176,6 +1178,13 @@ class DashboardService:
                     'expenses': 'local'
                 }
             }
+
+    def _get_clover_chef_performance_data(self, *args, **kwargs):
+        """
+        Deprecated: Do NOT use live Clover API for chef/staff analytics.
+        This function is kept for reference only and should not be called.
+        """
+        raise NotImplementedError("Live Clover API should not be used for chef performance analytics. Please sync sales to the local database and use _get_local_chef_performance_data instead.")
 
     def _get_clover_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None, category=None):
         """Get chef performance data using Clover sales data and local chef mappings, with optional category filter, excluding 'Unassigned' chef and reporting unmapped items. Only use clover_id for mapping."""
