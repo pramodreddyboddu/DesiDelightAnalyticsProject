@@ -265,6 +265,22 @@ export const CloverIntegration = () => {
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <Button
+            onClick={handleSyncSales}
+            disabled={salesSyncLoading}
+            variant="outline"
+            size="sm"
+          >
+            {salesSyncLoading ? 'Syncing Sales...' : 'Sync Sales'}
+          </Button>
+          <Button
+            onClick={handleSyncAll}
+            disabled={allSyncLoading}
+            variant="outline"
+            size="sm"
+          >
+            {allSyncLoading ? 'Syncing All...' : 'Sync All'}
+          </Button>
         </div>
       </header>
 
