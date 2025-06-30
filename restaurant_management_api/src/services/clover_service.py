@@ -9,6 +9,7 @@ from src.models import db
 from src.models.sale import Sale
 from src.models.item import Item
 from src.models.user import User
+from src.models.chef_dish_mapping import ChefDishMapping
 import os
 import urllib.parse
 import pytz
