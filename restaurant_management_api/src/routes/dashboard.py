@@ -73,7 +73,9 @@ def get_chef_performance():
         logging.info(f"Chef performance request - chef_ids: {chef_ids}")
         
         # Use dashboard service to get chef performance data
+        logging.info("About to call dashboard_service.get_chef_performance_data")
         chef_data = dashboard_service.get_chef_performance_data(start_date, end_date, chef_ids)
+        logging.info(f"Chef performance data returned: {type(chef_data)}")
         
         return jsonify(chef_data), 200
         
