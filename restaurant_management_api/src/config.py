@@ -69,7 +69,7 @@ class Config:
         'https://desi-delight-analytics-project-pkhf.vercel.app'
     ]
     CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With']
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-KEY']
     CORS_EXPOSE_HEADERS = ['Content-Type', 'Authorization']
     CORS_SUPPORTS_CREDENTIALS = True
     CORS_MAX_AGE = 3600
