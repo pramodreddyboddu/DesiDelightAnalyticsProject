@@ -1044,7 +1044,7 @@ class DashboardService:
             if not start_date or not end_date:
                 tz = pytz.timezone('America/Chicago')
                 now = datetime.now(tz)
-                start_date = datetime.combine(now.date(), time.min).replace(tzinfo=tz)
+                start_date = datetime.combine(now.date(), datetime.min.time()).replace(tzinfo=tz)
                 end_date = now
             
             # Get sales data from configured source
