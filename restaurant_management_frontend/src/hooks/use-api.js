@@ -177,13 +177,13 @@ export const useApiMutation = (endpoint, options = {}) => {
 
       // If endpoint is a function, call it with variables to get the dynamic URL
       const url = typeof endpoint === 'function' ? endpoint(variables) : endpoint;
-      
       const method = options.method || 'POST';
       const body = options.method !== 'GET' ? JSON.stringify(variables) : undefined;
 
       const result = await request(url, {
         method: method,
         body: body,
+        headers: options.headers, // Pass custom headers (e.g., API key)
       });
 
       // Invalidate related cache
@@ -200,12 +200,12 @@ export const useApiMutation = (endpoint, options = {}) => {
 
       return result;
     } catch (err) {
-        if(options.onError) {
-            options.onError(err, variables);
-        } else {
-            setError(err.message || String(err));
-            showError('Mutation Failed', err.message || String(err));
-        }
+      setError(err.message || String(err));
+      if (options.onError) {
+        options.onError(err, variables);
+      } else {
+        showError('Request Failed', err.message || String(err));
+      }
       throw err;
     } finally {
       setLoading(false);

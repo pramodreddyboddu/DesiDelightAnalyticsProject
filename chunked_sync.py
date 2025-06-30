@@ -4,8 +4,7 @@ import time
 
 # CONFIGURE THESE
 API_URL = "https://plateiq-analytics-api-f6a987ab13c5.herokuapp.com/api/clover/sync/sales"
-# If your endpoint requires authentication, set your session cookie here:
-ADMIN_COOKIE = None  # e.g., 'your_session_cookie_here'
+API_KEY = "supersecretkey1234567890"  # Change if you set a custom key in Heroku
 
 # Set your date range (YYYY, M, D)
 start_date = datetime.date(2025, 6, 1)
@@ -21,9 +20,10 @@ while current <= end_date:
     }
     print(f"Syncing sales for {current}...")
     try:
-        headers = {"Content-Type": "application/json"}
-        if ADMIN_COOKIE:
-            headers["Cookie"] = f"plateiq_session={ADMIN_COOKIE}"
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-KEY": API_KEY
+        }
         resp = requests.post(
             API_URL,
             json=payload,

@@ -27,6 +27,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_KEY = "supersecretkey1234567890"; // Or your custom key
 
 // Rate limiting hook
 const useRateLimitedApi = (url, options = {}) => {
@@ -129,6 +130,7 @@ export const CloverIntegration = () => {
   
   // Sync mutations
   const { mutate: syncSales, loading: salesSyncLoading } = useApiMutation('/clover/sync/sales', {
+    headers: { "X-API-KEY": API_KEY },
     onSuccess: () => {
       success('Sales Sync Complete', 'Sales data has been successfully synchronized from Clover');
       fetchRealtime();
@@ -139,6 +141,7 @@ export const CloverIntegration = () => {
   });
 
   const { mutate: syncInventory, loading: inventorySyncLoading } = useApiMutation('/clover/sync/inventory', {
+    headers: { "X-API-KEY": API_KEY },
     onSuccess: () => {
       success('Inventory Sync Complete', 'Inventory data has been successfully synchronized from Clover');
       fetchInventory();
@@ -149,6 +152,7 @@ export const CloverIntegration = () => {
   });
 
   const { mutate: syncAll, loading: allSyncLoading } = useApiMutation('/clover/sync/all', {
+    headers: { "X-API-KEY": API_KEY },
     onSuccess: () => {
       success('Full Sync Complete', 'All data has been successfully synchronized from Clover');
       fetchStatus();
