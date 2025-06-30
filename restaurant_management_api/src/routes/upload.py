@@ -277,7 +277,6 @@ def upload_chef_mapping():
         if 'file' not in request.files:
             logger.error(f"Chef mapping upload failed: No file provided")
             return jsonify({'error': 'No file part'}), 400
-            
         file = request.files['file']
         if file.filename == '' or not allowed_file(file.filename):
             logger.error(f"Chef mapping upload failed: Invalid file - filename: {file.filename}")
@@ -286,7 +285,6 @@ def upload_chef_mapping():
         filename = secure_filename(file.filename)
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         logger.info(f"Processing chef mapping file: {filename} for tenant {tenant_id}")
-        
         file.save(filepath)
         logger.info(f"File saved to: {filepath}")
 
@@ -311,50 +309,47 @@ def upload_chef_mapping():
         mappings_created = 0
         mappings_updated = 0
         errors = []
-        
         for index, row in df.iterrows():
             try:
                 chef_name = row.get('chef_name')
                 item_name = row.get('item_name')
-                clover_item_id = row.get('clover_id')  # Optional Clover ID column
-                
+                clover_item_id = row.get('clover_id') if 'clover_id' in row else None
                 # Skip rows with NaN or empty values
                 if pd.isna(chef_name) or pd.isna(item_name) or not chef_name or not item_name:
                     logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}'")
                     continue
-
-                logger.info(f"Processing row {index}: chef='{chef_name}', item='{item_name}', clover_id='{clover_item_id}'")
-
-                chef = Chef.query.filter_by(name=chef_name, tenant_id=tenant_id).first()
+                chef_name_clean = chef_name.strip().lower()
+                item_name_clean = item_name.strip().lower()
+                # Find or create chef (case-insensitive)
+                chef = Chef.query.filter(db.func.lower(Chef.name) == chef_name_clean, Chef.tenant_id == tenant_id).first()
                 if not chef:
-                    chef_clover_id = generate_short_clover_id("CHEF", chef_name, tenant_id, index)
+                    chef_clover_id = f"CHEF_{chef_name_clean}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
                     chef = Chef(name=chef_name, tenant_id=tenant_id, clover_id=chef_clover_id)
                     db.session.add(chef)
                     db.session.flush()
                     logger.info(f"Created new chef: {chef_name} with ID: {chef.id}")
-
-                # Try to find item by clover_id first, then by name
+                # Find or create item (prefer clover_id, fallback to name)
                 item = None
                 if clover_item_id and not pd.isna(clover_item_id):
                     item = Item.query.filter_by(clover_id=str(clover_item_id), tenant_id=tenant_id).first()
                     if item:
                         logger.info(f"Found item by clover_id: {clover_item_id} -> {item.name}")
                 if not item:
-                    item = Item.query.filter(db.func.lower(Item.name) == item_name.strip().lower(), Item.tenant_id == tenant_id).first()
+                    item = Item.query.filter(db.func.lower(Item.name) == item_name_clean, Item.tenant_id == tenant_id).first()
                     if item:
                         logger.info(f"Found item by name: {item_name}")
                 if not item:
+                    # Create new item with provided clover_id if available
                     if clover_item_id and not pd.isna(clover_item_id):
                         item_clover_id = str(clover_item_id)
                         logger.info(f"Creating new item with provided clover_id: {item_clover_id}")
                     else:
-                        item_clover_id = generate_short_clover_id("ITEM", item_name, tenant_id, index)
+                        item_clover_id = f"ITEM_{item_name_clean}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
                         logger.info(f"Creating new item with generated clover_id: {item_clover_id}")
                     item = Item(name=item_name, category='Uncategorized', tenant_id=tenant_id, clover_id=item_clover_id)
                     db.session.add(item)
                     db.session.flush()
                     logger.info(f"Created new item: {item_name} with ID: {item.id}")
-
                 # Always update or create the mapping
                 mapping = ChefDishMapping.query.filter_by(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id).first()
                 if not mapping:
@@ -363,17 +358,14 @@ def upload_chef_mapping():
                     mappings_created += 1
                     logger.info(f"Created mapping: {chef_name} -> {item_name}")
                 else:
-                    # If mapping exists, update is_active and any other fields if needed
                     mapping.is_active = True
                     mappings_updated += 1
                     logger.info(f"Updated mapping: {chef_name} -> {item_name}")
-
             except Exception as e:
                 error_msg = f"Error processing row {index}: {str(e)}"
                 logger.error(error_msg)
                 errors.append(error_msg)
                 continue
-
         try:
             db.session.commit()
             logger.info(f"Successfully committed {mappings_created} new and {mappings_updated} updated chef-dish mappings")
@@ -381,16 +373,13 @@ def upload_chef_mapping():
             logger.error(f"Database commit failed: {str(e)}")
             db.session.rollback()
             return jsonify({'error': f'Database error: {str(e)}'}), 500
-
         if os.path.exists(filepath):
             os.remove(filepath)
             logger.info(f"Cleaned up temporary file: {filepath}")
-
         return jsonify({
             'message': f'{mappings_created} new and {mappings_updated} updated chef-dish mappings successfully.',
             'errors': errors[:5] if errors else []
         })
-
     except Exception as e:
         logger.error(f"Unexpected error in chef mapping upload: {str(e)}")
         import traceback
