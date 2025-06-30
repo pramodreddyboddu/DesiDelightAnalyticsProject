@@ -56,18 +56,34 @@ def get_clover_status():
 def sync_sales():
     """Sync sales data from Clover to local database"""
     try:
-        # Get date range from request
-        data = request.get_json() or {}
+        # Debug: Log request details
+        print(f"Request Content-Type: {request.content_type}")
+        print(f"Request headers: {dict(request.headers)}")
+        print(f"Request data: {request.get_data()}")
+        
+        # Get date range from request - be more flexible with content type
+        data = {}
+        if request.content_type and 'application/json' in request.content_type:
+            data = request.get_json() or {}
+        else:
+            # Try to parse as form data or query params
+            data = request.form.to_dict() or request.args.to_dict()
+        
         start_date_str = data.get('start_date')
         end_date_str = data.get('end_date')
         
-        start_date = None
-        end_date = None
-        
-        if start_date_str:
+        # If no dates provided, use default range (last 7 days)
+        if not start_date_str:
+            start_date = datetime.utcnow() - timedelta(days=7)
+        else:
             start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
-        if end_date_str:
+            
+        if not end_date_str:
+            end_date = datetime.utcnow()
+        else:
             end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+        
+        print(f"Sync date range: {start_date} to {end_date}")
         
         clover_service = get_clover_service()
         result = clover_service.sync_sales_data(start_date, end_date)
