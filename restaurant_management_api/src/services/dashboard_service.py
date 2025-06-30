@@ -92,16 +92,16 @@ class DashboardService:
     
     def get_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None):
         """
-        Best Practice: Always use local database for chef/staff performance analytics.
-        This ensures fast, scalable, and reliable analytics using SQL joins with chef mappings.
-        Do NOT use live Clover API for this purpose.
+        Get chef performance data using the configured data source.
+        If sales data source is 'clover', use live Clover API for real-time data.
+        If sales data source is 'local', use local database.
         """
         data_source = self.get_data_source('sales')
         if data_source == 'clover':
-            # ENFORCE: Only use local DB for chef performance analytics
-            # If sales are not synced, this will return zeroes (as expected)
-            return self._get_local_chef_performance_data(start_date, end_date, chef_ids)
+            # Use live Clover API for real-time chef performance data
+            return self._get_clover_chef_performance_data(start_date, end_date, chef_ids)
         else:
+            # Use local database for chef performance data
             return self._get_local_chef_performance_data(start_date, end_date, chef_ids)
     
     def _get_clover_sales_summary(self, start_date=None, end_date=None, category=None):
@@ -1179,12 +1179,7 @@ class DashboardService:
                 }
             }
 
-    def _get_clover_chef_performance_data(self, *args, **kwargs):
-        """
-        Deprecated: Do NOT use live Clover API for chef/staff analytics.
-        This function is kept for reference only and should not be called.
-        """
-        raise NotImplementedError("Live Clover API should not be used for chef performance analytics. Please sync sales to the local database and use _get_local_chef_performance_data instead.")
+
 
     def _get_clover_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None, category=None):
         """Get chef performance data using Clover sales data and local chef mappings, with optional category filter, excluding 'Unassigned' chef and reporting unmapped items. Only use clover_id for mapping."""
