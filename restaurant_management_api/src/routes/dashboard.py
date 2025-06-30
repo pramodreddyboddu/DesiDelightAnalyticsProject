@@ -61,6 +61,7 @@ def get_sales_summary():
 @dashboard_bp.route('/chef-performance', methods=['GET'])
 @login_required
 def get_chef_performance():
+    print("=== CHEF PERFORMANCE ROUTE CALLED ===")
     logging.info("=== CHEF PERFORMANCE ROUTE CALLED ===")
     try:
         # Get query parameters
