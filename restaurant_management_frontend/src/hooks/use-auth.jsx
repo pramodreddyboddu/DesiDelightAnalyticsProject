@@ -81,7 +81,10 @@ export const AuthProvider = ({ children }) => {
       // Detect if we're on mobile
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      // Use mobile-specific endpoint for mobile browsers
+      const endpoint = isMobile ? '/auth/mobile-login' : '/auth/login';
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,6 +97,9 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         if (isMobile) {
           console.log('Mobile login successful, checking auth status...');
+          // For mobile, also check if debug cookie is set
+          const debugCookie = document.cookie.includes('plateiq_mobile_debug');
+          console.log('Mobile debug cookie present:', debugCookie);
         }
         await checkAuthStatus();
         return { success: true };

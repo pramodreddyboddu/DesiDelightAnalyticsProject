@@ -105,17 +105,32 @@ def login():
         is_mobile = any(mobile in user_agent for mobile in ['mobile', 'android', 'iphone', 'ipad', 'ipod'])
         
         if is_mobile:
-            # For mobile browsers, use more permissive session settings
+            # For mobile browsers, try multiple cookie strategies
+            current_app.logger.info(f"Mobile browser detected for user {username}")
+            
+            # Strategy 1: Try with SameSite=None (most permissive)
             resp.set_cookie(
                 'plateiq_session',
                 session.sid if hasattr(session, 'sid') else '',
                 secure=True,
                 httponly=True,
-                samesite='Lax',  # More mobile-friendly
+                samesite='None',  # Most permissive for cross-origin
                 path='/',
                 max_age=86400  # 1 day
             )
-            current_app.logger.info(f"Mobile browser detected, using Lax SameSite for user {username}")
+            
+            # Strategy 2: Also set a non-httponly cookie for mobile debugging
+            resp.set_cookie(
+                'plateiq_session_debug',
+                'mobile_session_active',
+                secure=True,
+                httponly=False,  # Allow JavaScript access
+                samesite='None',
+                path='/',
+                max_age=86400
+            )
+            
+            current_app.logger.info(f"Mobile session cookies set for user {username}")
         else:
             # For desktop browsers, use standard settings
             current_app.logger.info(f"Desktop browser detected for user {username}")
@@ -326,4 +341,65 @@ def mobile_auth_check():
         'session_data': dict(session),
         'error': 'No valid session found'
     }), 401
+
+@auth_bp.route('/mobile-login', methods=['POST'])
+def mobile_login():
+    """Mobile-specific login endpoint with enhanced cookie handling"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password are required'}), 400
+
+        user = User.query.filter_by(username=username).first()
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        # Set user in session
+        session['user_id'] = user.id
+        session['username'] = user.username
+        session['role'] = user.role
+        session['is_admin'] = user.is_admin
+        session['tenant_id'] = user.tenant_id
+
+        current_app.logger.info(f"Mobile login successful for user {username}")
+
+        # Create response with multiple cookie strategies for mobile
+        resp = make_response(jsonify({
+            'message': 'Mobile login successful',
+            'user': user.to_dict(),
+            'mobile_optimized': True
+        }))
+
+        # Set multiple cookie variants for mobile compatibility
+        resp.set_cookie(
+            'plateiq_session',
+            session.sid if hasattr(session, 'sid') else '',
+            secure=True,
+            httponly=True,
+            samesite='None',
+            path='/',
+            max_age=86400
+        )
+        
+        # Set a JavaScript-accessible cookie for debugging
+        resp.set_cookie(
+            'plateiq_mobile_debug',
+            'logged_in',
+            secure=True,
+            httponly=False,
+            samesite='None',
+            path='/',
+            max_age=86400
+        )
+
+        return resp
+    except Exception as e:
+        current_app.logger.error(f"Mobile login error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
