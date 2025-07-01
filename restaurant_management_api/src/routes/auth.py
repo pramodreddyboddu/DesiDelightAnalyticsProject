@@ -99,6 +99,27 @@ def login():
             'message': 'Login successful',
             'user': user.to_dict()
         }))
+        
+        # Mobile browser detection and session cookie adjustment
+        user_agent = request.headers.get('User-Agent', '').lower()
+        is_mobile = any(mobile in user_agent for mobile in ['mobile', 'android', 'iphone', 'ipad', 'ipod'])
+        
+        if is_mobile:
+            # For mobile browsers, use more permissive session settings
+            resp.set_cookie(
+                'plateiq_session',
+                session.sid if hasattr(session, 'sid') else '',
+                secure=True,
+                httponly=True,
+                samesite='Lax',  # More mobile-friendly
+                path='/',
+                max_age=86400  # 1 day
+            )
+            current_app.logger.info(f"Mobile browser detected, using Lax SameSite for user {username}")
+        else:
+            # For desktop browsers, use standard settings
+            current_app.logger.info(f"Desktop browser detected for user {username}")
+        
         # Debug: print response headers
         print('Login response headers:', dict(resp.headers))
         return resp
@@ -274,4 +295,35 @@ def session_debug():
         'session_info': session_info,
         'timestamp': datetime.utcnow().isoformat()
     })
+
+@auth_bp.route('/mobile-auth-check', methods=['GET'])
+def mobile_auth_check():
+    """Mobile-specific authentication check with enhanced debugging"""
+    user_agent = request.headers.get('User-Agent', '').lower()
+    is_mobile = any(mobile in user_agent for mobile in ['mobile', 'android', 'iphone', 'ipad', 'ipod'])
+    
+    # Check if user is authenticated
+    user_id = session.get('user_id')
+    if user_id:
+        user = User.query.get(user_id)
+        if user:
+            return jsonify({
+                'authenticated': True,
+                'user': user.to_dict(),
+                'mobile_detected': is_mobile,
+                'user_agent': request.headers.get('User-Agent'),
+                'session_id': session.sid if hasattr(session, 'sid') else 'No session ID',
+                'cookies_present': bool(request.cookies.get('plateiq_session')),
+                'session_data': dict(session)
+            })
+    
+    return jsonify({
+        'authenticated': False,
+        'mobile_detected': is_mobile,
+        'user_agent': request.headers.get('User-Agent'),
+        'session_id': session.sid if hasattr(session, 'sid') else 'No session ID',
+        'cookies_present': bool(request.cookies.get('plateiq_session')),
+        'session_data': dict(session),
+        'error': 'No valid session found'
+    }), 401
 

@@ -46,12 +46,12 @@ class Config:
         SESSION_TYPE = 'filesystem'
         print("⚠️ No REDIS_URL found, using filesystem sessions")
     
-    # Session settings optimized for cross-origin requests
+    # Session settings optimized for cross-origin requests and mobile browsers
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
     SESSION_COOKIE_SECURE = True  # Always secure in production
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin
+    SESSION_COOKIE_SAMESITE = 'Lax'  # More mobile-friendly than 'None'
     SESSION_COOKIE_PATH = '/'
     SESSION_COOKIE_NAME = 'plateiq_session'
     SESSION_REFRESH_EACH_REQUEST = True

@@ -24,17 +24,48 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      // Detect if we're on mobile
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Use mobile-specific endpoint for mobile browsers
+      const endpoint = isMobile ? '/auth/mobile-auth-check' : '/auth/me';
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         credentials: 'include',
+        headers: {
+          'User-Agent': navigator.userAgent, // Send user agent for server-side detection
+        },
       });
 
       if (response.ok) {
         const userData = await response.json();
         setUser(userData.user);
         setIsAuthenticated(true);
+        
+        if (isMobile) {
+          console.log('Mobile authentication successful:', userData);
+        }
       } else {
         setUser(null);
         setIsAuthenticated(false);
+        
+        if (isMobile) {
+          console.log('Mobile authentication failed, trying fallback...');
+          // Try the regular endpoint as fallback
+          try {
+            const fallbackResponse = await fetch(`${API_BASE_URL}/auth/me`, {
+              credentials: 'include',
+            });
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              setUser(fallbackData.user);
+              setIsAuthenticated(true);
+              console.log('Fallback authentication successful');
+            }
+          } catch (fallbackError) {
+            console.error('Fallback authentication failed:', fallbackError);
+          }
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -47,16 +78,23 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
+      // Detect if we're on mobile
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': navigator.userAgent, // Send user agent for server-side detection
         },
         credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
 
       if (response.ok) {
+        if (isMobile) {
+          console.log('Mobile login successful, checking auth status...');
+        }
         await checkAuthStatus();
         return { success: true };
       } else {
