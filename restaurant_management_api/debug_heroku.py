@@ -7,67 +7,108 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from main import app, db
-from models.chef_dish_mapping import ChefDishMapping
-from models.chef import Chef
-from models.item import Item
-from models.sale import Sale
 
 def main():
     with app.app_context():
         print("=== PRODUCTION DATABASE DEBUG REPORT ===")
         
-        # Basic counts
-        total_items = Item.query.count()
-        total_chefs = Chef.query.count()
-        total_mappings = ChefDishMapping.query.count()
-        total_sales = Sale.query.count()
-        
-        print(f"📊 DATABASE COUNTS:")
-        print(f"   Items: {total_items}")
-        print(f"   Chefs: {total_chefs}")
-        print(f"   Chef Mappings: {total_mappings}")
-        print(f"   Sales Records: {total_sales}")
-        
-        # Sample mappings
-        print(f"\n🔗 SAMPLE CHEF MAPPINGS (first 5):")
-        mappings = ChefDishMapping.query.limit(5).all()
-        for m in mappings:
-            chef = Chef.query.get(m.chef_id)
-            item = Item.query.get(m.item_id)
-            print(f"   Mapping {m.id}: {chef.name if chef else 'Unknown Chef'} -> {item.name if item else 'Unknown Item'}")
-        
-        # Check for Butter Chicken specifically
-        print(f"\n🍗 LOOKING FOR BUTTER CHICKEN:")
-        butter_items = Item.query.filter(Item.name.like('%Butter Chicken%')).all()
-        if butter_items:
-            for item in butter_items:
-                print(f"   Found: {item.name} (ID: {item.id})")
-                mapping = ChefDishMapping.query.filter_by(item_id=item.id).first()
-                if mapping:
-                    chef = Chef.query.get(mapping.chef_id)
-                    print(f"     Mapped to: {chef.name if chef else 'Unknown'}")
-                else:
-                    print(f"     ❌ NOT MAPPED TO ANY CHEF!")
-        else:
-            print("   ❌ No Butter Chicken items found!")
-        
-        # Check unmapped sales items
-        print(f"\n❌ SALES ITEMS WITHOUT CHEF MAPPING:")
-        sales_item_ids = set(s.item_id for s in Sale.query.all())
-        mapped_item_ids = set(m.item_id for m in ChefDishMapping.query.all())
-        unmapped = sales_item_ids - mapped_item_ids
-        
-        if unmapped:
-            print(f"   Found {len(unmapped)} unmapped items:")
-            for item_id in list(unmapped)[:5]:
-                item = Item.query.get(item_id)
-                print(f"     {item.name if item else 'Unknown'} (ID: {item_id})")
-            if len(unmapped) > 5:
-                print(f"     ... and {len(unmapped)-5} more")
-        else:
-            print("   ✅ All sales items are mapped!")
-        
-        print(f"\n=== END REPORT ===")
+        # Direct SQL queries to avoid model import issues
+        try:
+            # Basic counts
+            result = db.session.execute("SELECT COUNT(*) as count FROM items")
+            total_items = result.fetchone()[0]
+            
+            result = db.session.execute("SELECT COUNT(*) as count FROM chefs")
+            total_chefs = result.fetchone()[0]
+            
+            result = db.session.execute("SELECT COUNT(*) as count FROM chef_dish_mapping")
+            total_mappings = result.fetchone()[0]
+            
+            result = db.session.execute("SELECT COUNT(*) as count FROM sales")
+            total_sales = result.fetchone()[0]
+            
+            print(f"📊 DATABASE COUNTS:")
+            print(f"   Items: {total_items}")
+            print(f"   Chefs: {total_chefs}")
+            print(f"   Chef Mappings: {total_mappings}")
+            print(f"   Sales Records: {total_sales}")
+            
+            # Sample mappings
+            print(f"\n🔗 SAMPLE CHEF MAPPINGS (first 5):")
+            result = db.session.execute("""
+                SELECT cdm.id, c.name as chef_name, i.name as item_name 
+                FROM chef_dish_mapping cdm
+                LEFT JOIN chefs c ON cdm.chef_id = c.id
+                LEFT JOIN items i ON cdm.item_id = i.id
+                LIMIT 5
+            """)
+            mappings = result.fetchall()
+            for m in mappings:
+                print(f"   Mapping {m[0]}: {m[1] or 'Unknown Chef'} -> {m[2] or 'Unknown Item'}")
+            
+            # Check for Butter Chicken specifically
+            print(f"\n🍗 LOOKING FOR BUTTER CHICKEN:")
+            result = db.session.execute("""
+                SELECT id, name FROM items 
+                WHERE name LIKE '%Butter Chicken%'
+            """)
+            butter_items = result.fetchall()
+            if butter_items:
+                for item in butter_items:
+                    print(f"   Found: {item[1]} (ID: {item[0]})")
+                    result = db.session.execute("""
+                        SELECT c.name FROM chef_dish_mapping cdm
+                        LEFT JOIN chefs c ON cdm.chef_id = c.id
+                        WHERE cdm.item_id = %s
+                    """, (item[0],))
+                    mapping = result.fetchone()
+                    if mapping:
+                        print(f"     Mapped to: {mapping[0] or 'Unknown'}")
+                    else:
+                        print(f"     ❌ NOT MAPPED TO ANY CHEF!")
+            else:
+                print("   ❌ No Butter Chicken items found!")
+            
+            # Check unmapped sales items
+            print(f"\n❌ SALES ITEMS WITHOUT CHEF MAPPING:")
+            result = db.session.execute("""
+                SELECT DISTINCT s.item_id, i.name
+                FROM sales s
+                LEFT JOIN items i ON s.item_id = i.id
+                WHERE s.item_id NOT IN (SELECT item_id FROM chef_dish_mapping)
+                LIMIT 10
+            """)
+            unmapped = result.fetchall()
+            
+            if unmapped:
+                print(f"   Found {len(unmapped)} unmapped items:")
+                for item_id, name in unmapped:
+                    print(f"     {name or 'Unknown'} (ID: {item_id})")
+            else:
+                print("   ✅ All sales items are mapped!")
+            
+            # Check tenant consistency
+            print(f"\n🏢 TENANT CONSISTENCY CHECK:")
+            result = db.session.execute("SELECT COUNT(*) as count FROM tenants")
+            total_tenants = result.fetchone()[0]
+            print(f"   Total Tenants: {total_tenants}")
+            
+            result = db.session.execute("""
+                SELECT t.name, COUNT(cdm.id) as mapping_count
+                FROM tenants t
+                LEFT JOIN chef_dish_mapping cdm ON t.id = cdm.tenant_id
+                GROUP BY t.id, t.name
+            """)
+            tenant_mappings = result.fetchall()
+            for tenant_name, mapping_count in tenant_mappings:
+                print(f"   {tenant_name}: {mapping_count} mappings")
+            
+            print(f"\n=== END REPORT ===")
+            
+        except Exception as e:
+            print(f"❌ Error during database query: {e}")
+            import traceback
+            traceback.print_exc()
 
 if __name__ == "__main__":
     main() 
