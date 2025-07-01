@@ -81,8 +81,13 @@ export const AuthProvider = ({ children }) => {
       // Detect if we're on mobile
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
+      // Debug logging
+      console.log('User Agent:', navigator.userAgent);
+      console.log('Is Mobile:', isMobile);
+      
       // Use mobile-specific endpoint for mobile browsers
       const endpoint = isMobile ? '/auth/mobile-login' : '/auth/login';
+      console.log('Using endpoint:', endpoint);
       
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
@@ -105,6 +110,31 @@ export const AuthProvider = ({ children }) => {
         return { success: true };
       } else {
         const errorData = await response.json();
+        
+        // If mobile endpoint fails, try regular endpoint as fallback
+        if (isMobile) {
+          console.log('Mobile endpoint failed, trying regular endpoint...');
+          try {
+            const fallbackResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': navigator.userAgent,
+              },
+              credentials: 'include',
+              body: JSON.stringify({ username, password }),
+            });
+            
+            if (fallbackResponse.ok) {
+              console.log('Fallback login successful');
+              await checkAuthStatus();
+              return { success: true };
+            }
+          } catch (fallbackError) {
+            console.error('Fallback login failed:', fallbackError);
+          }
+        }
+        
         return { success: false, error: errorData.error || 'Login failed' };
       }
     } catch (error) {

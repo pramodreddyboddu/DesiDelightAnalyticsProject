@@ -403,3 +403,16 @@ def mobile_login():
         current_app.logger.error(f"Mobile login error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@auth_bp.route('/test-mobile', methods=['GET'])
+def test_mobile():
+    """Test endpoint to verify mobile detection"""
+    user_agent = request.headers.get('User-Agent', '').lower()
+    is_mobile = any(mobile in user_agent for mobile in ['mobile', 'android', 'iphone', 'ipad', 'ipod'])
+    
+    return jsonify({
+        'user_agent': request.headers.get('User-Agent'),
+        'is_mobile': is_mobile,
+        'mobile_keywords_found': [mobile for mobile in ['mobile', 'android', 'iphone', 'ipad', 'ipod'] if mobile in user_agent],
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
