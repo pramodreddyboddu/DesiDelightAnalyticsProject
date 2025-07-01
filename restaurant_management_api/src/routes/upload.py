@@ -315,9 +315,10 @@ def upload_chef_mapping():
                 chef_name = row.get('chef_name')
                 item_name = row.get('item_name')
                 clover_item_id = row.get('clover_id') if 'clover_id' in row else None
+                logger.debug(f"Row {index}: chef_name='{chef_name}', item_name='{item_name}', clover_id='{clover_item_id}'")
                 # Skip rows with NaN or empty values
                 if pd.isna(chef_name) or pd.isna(item_name) or not chef_name or not item_name:
-                    logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}'")
+                    logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}' (empty or NaN)")
                     continue
                 chef_name_clean = chef_name.strip().lower()
                 item_name_clean = item_name.strip().lower()
@@ -332,13 +333,19 @@ def upload_chef_mapping():
                 # Find item (prefer clover_id, fallback to name) - DO NOT CREATE NEW ITEMS
                 item = None
                 if clover_item_id and not pd.isna(clover_item_id):
+                    logger.debug(f"Looking up item by clover_id='{clover_item_id}' for tenant_id='{tenant_id}'")
                     item = Item.query.filter_by(clover_id=str(clover_item_id), tenant_id=tenant_id).first()
                     if item:
                         logger.info(f"Found item by clover_id: {clover_item_id} -> {item.name}")
+                    else:
+                        logger.warning(f"No item found by clover_id: {clover_item_id} for tenant_id={tenant_id}")
                 if not item:
+                    logger.debug(f"Looking up item by name='{item_name_clean}' for tenant_id='{tenant_id}'")
                     item = Item.query.filter(db.func.lower(Item.name) == item_name_clean, Item.tenant_id == tenant_id).first()
                     if item:
                         logger.info(f"Found item by name: {item_name}")
+                    else:
+                        logger.warning(f"No item found by name: {item_name_clean} for tenant_id={tenant_id}")
                 if not item:
                     # Item not found - skip this mapping and log it
                     items_not_found += 1
