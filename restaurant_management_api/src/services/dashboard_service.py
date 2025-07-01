@@ -400,8 +400,10 @@ class DashboardService:
     def _get_local_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None):
         """Get chef performance data from local database, excluding 'Unassigned' chef and reporting unmapped items."""
         try:
-            # Exclude 'Unassigned' chef
-            real_chefs = db.session.query(Chef.id).filter(Chef.name != 'Unassigned').subquery()
+            # Get all real chefs (exclude 'Unassigned' and only keep the 4 real chefs)
+            allowed_chefs = ["Sarva&Ram", "Savithri", "Wasim", "Chef_miscellanies"]
+            real_chefs = {chef.id: chef.name for chef in Chef.query.filter(Chef.name.in_(allowed_chefs)).all()}
+            logging.info(f"Found {len(real_chefs)} real chefs: {list(real_chefs.values())}")
             # Build base query for chef performance
             query = (
                 db.session.query(
@@ -1199,8 +1201,9 @@ class DashboardService:
             chef_mappings = db.session.query(ChefDishMapping).all()
             clover_id_to_chef = {mapping.clover_id: mapping.chef_id for mapping in chef_mappings if mapping.clover_id}
             logging.info(f"Found {len(chef_mappings)} chef mappings with clover_id")
-            # Get all real chefs (exclude 'Unassigned')
-            real_chefs = {chef.id: chef.name for chef in Chef.query.filter(Chef.name != 'Unassigned').all()}
+            # Get all real chefs (exclude 'Unassigned' and only keep the 4 real chefs)
+            allowed_chefs = ["Sarva&Ram", "Savithri", "Wasim", "Chef_miscellanies"]
+            real_chefs = {chef.id: chef.name for chef in Chef.query.filter(Chef.name.in_(allowed_chefs)).all()}
             logging.info(f"Found {len(real_chefs)} real chefs: {list(real_chefs.values())}")
             # Filter chefs if specified
             chefs = real_chefs.copy()
