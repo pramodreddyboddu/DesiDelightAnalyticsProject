@@ -17,7 +17,8 @@ from src.models.chef import Chef
 def main():
     with app.app_context():
         print("=== CLOVER ITEM MAPPING DEBUG ===")
-        clover_service = CloverService(Config)
+        config = Config()
+        clover_service = CloverService(config)
         # Get recent orders from Clover
         print("Fetching recent orders from Clover API...")
         orders = clover_service.get_orders()
