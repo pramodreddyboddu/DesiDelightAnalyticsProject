@@ -12,9 +12,6 @@ from src.models import db, ChefDishMapping, Chef, Item, Sale
 def main():
     app = create_app()
     
-    # Initialize the database with the app
-    db.init_app(app)
-    
     with app.app_context():
         print("=== PRODUCTION DATABASE DEBUG REPORT ===")
         
