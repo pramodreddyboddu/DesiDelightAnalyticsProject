@@ -8,6 +8,9 @@ from datetime import timedelta, datetime
 import uuid
 from sqlalchemy import text
 
+# Add Flask-Migrate for migrations
+from flask_migrate import Migrate
+
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -62,7 +65,8 @@ def create_app(config_name=None):
     
     # Initialize extensions
     db.init_app(app)
-    
+    # Initialize Flask-Migrate
+    migrate = Migrate(app, db)
     # Initialize Flask-Session (config-driven)
     Session(app)
     

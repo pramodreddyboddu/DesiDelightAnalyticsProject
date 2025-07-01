@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""
+Debug script to check chef mapping consistency and linkage to sales/items
+"""
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
@@ -8,68 +11,55 @@ from src.models import db, ChefDishMapping, Chef, Item, Sale
 
 def debug_mapping_issue():
     app = create_app()
-    
     with app.app_context():
-        print("=== DEBUGGING CHEF MAPPING ISSUE ===")
+        print("=== DEBUGGING CHEF MAPPING CONSISTENCY ===")
         
-        # Check total items
+        # Total counts
         total_items = Item.query.count()
-        print(f"Total items in database: {total_items}")
-        
-        # Check total chef mappings
+        total_chefs = Chef.query.count()
         total_mappings = ChefDishMapping.query.count()
-        print(f"Total chef mappings: {total_mappings}")
-        
-        # Check total sales
         total_sales = Sale.query.count()
+        print(f"Total items: {total_items}")
+        print(f"Total chefs: {total_chefs}")
+        print(f"Total chef mappings: {total_mappings}")
         print(f"Total sales records: {total_sales}")
         
-        # Get sample items with sales
-        items_with_sales = db.session.query(Item.id, Item.name, Item.tenant_id).join(Sale, Item.id == Sale.item_id).distinct().limit(10).all()
-        print(f"\nSample items with sales:")
-        for item_id, item_name, tenant_id in items_with_sales:
-            print(f"  Item ID: {item_id}, Name: '{item_name}', Tenant: {tenant_id}")
+        # Sample mappings
+        print("\nSample chef mappings:")
+        mappings = ChefDishMapping.query.limit(10).all()
+        for m in mappings:
+            chef = Chef.query.get(m.chef_id)
+            item = Item.query.get(m.item_id)
+            print(f"  Mapping ID {m.id}: Chef '{chef.name if chef else 'Unknown'}' -> Item '{item.name if item else 'Unknown'}' (Tenant: {m.tenant_id})")
         
-        # Check which items have mappings
-        mapped_items = db.session.query(ChefDishMapping.item_id).distinct().all()
-        mapped_item_ids = set(item_id for (item_id,) in mapped_items)
-        print(f"\nItems with chef mappings: {len(mapped_item_ids)}")
+        # Items in sales not mapped to any chef
+        print("\nItems in sales with NO chef mapping:")
+        sales_item_ids = set(s.item_id for s in Sale.query.all())
+        mapped_item_ids = set(m.item_id for m in ChefDishMapping.query.all())
+        unmapped_sales_items = sales_item_ids - mapped_item_ids
+        if unmapped_sales_items:
+            for item_id in list(unmapped_sales_items)[:10]:
+                item = Item.query.get(item_id)
+                print(f"  Item ID {item_id}: '{item.name if item else 'Unknown'}'")
+            print(f"...and {len(unmapped_sales_items)-10} more" if len(unmapped_sales_items) > 10 else "")
+        else:
+            print("  All sales items are mapped to a chef.")
         
-        # Check which items with sales don't have mappings
-        items_with_sales_no_mapping = db.session.query(Item.id, Item.name, Item.tenant_id).join(Sale, Item.id == Sale.item_id).filter(~Item.id.in_(mapped_item_ids)).distinct().limit(10).all()
-        print(f"\nSample items with sales but NO chef mappings:")
-        for item_id, item_name, tenant_id in items_with_sales_no_mapping:
-            print(f"  Item ID: {item_id}, Name: '{item_name}', Tenant: {tenant_id}")
+        # Mappings referencing missing items or chefs
+        print("\nMappings referencing missing items or chefs:")
+        for m in ChefDishMapping.query.limit(20).all():
+            chef = Chef.query.get(m.chef_id)
+            item = Item.query.get(m.item_id)
+            if not chef or not item:
+                print(f"  Mapping ID {m.id}: Chef ID {m.chef_id}, Item ID {m.item_id}, Tenant: {m.tenant_id}")
         
-        # Check chef mappings by tenant
-        print(f"\nChef mappings by tenant:")
-        tenant_mappings = db.session.query(ChefDishMapping.tenant_id, db.func.count(ChefDishMapping.id)).group_by(ChefDishMapping.tenant_id).all()
-        for tenant_id, count in tenant_mappings:
-            print(f"  Tenant {tenant_id}: {count} mappings")
-        
-        # Check items by tenant
-        print(f"\nItems by tenant:")
-        tenant_items = db.session.query(Item.tenant_id, db.func.count(Item.id)).group_by(Item.tenant_id).all()
-        for tenant_id, count in tenant_items:
-            print(f"  Tenant {tenant_id}: {count} items")
-        
-        # Check if there are any items with exact names that should match
-        print(f"\nChecking for potential name mismatches...")
-        sample_unmapped = items_with_sales_no_mapping[:5]
-        for item_id, item_name, tenant_id in sample_unmapped:
-            # Look for similar names in chef mappings
-            similar_mappings = ChefDishMapping.query.join(Item, ChefDishMapping.item_id == Item.id).filter(
-                Item.name.like(f"%{item_name}%") | Item.name.like(f"%{item_name.strip()}%")
-            ).limit(3).all()
-            
-            if similar_mappings:
-                print(f"  Item '{item_name}' might have similar mappings:")
-                for mapping in similar_mappings:
-                    item = Item.query.get(mapping.item_id)
-                    chef = Chef.query.get(mapping.chef_id)
-                    print(f"    Similar: '{item.name}' -> '{chef.name}'")
-            else:
-                print(f"  Item '{item_name}' - no similar mappings found")
+        # Check tenant_id consistency
+        print("\nChecking tenant_id consistency in mappings:")
+        for m in ChefDishMapping.query.limit(20).all():
+            item = Item.query.get(m.item_id)
+            if item and m.tenant_id != item.tenant_id:
+                print(f"  Mapping ID {m.id}: Mapping tenant {m.tenant_id} != Item tenant {item.tenant_id}")
+        print("\n=== END OF REPORT ===")
 
 if __name__ == "__main__":
     debug_mapping_issue() 
