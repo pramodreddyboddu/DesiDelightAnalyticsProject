@@ -302,26 +302,22 @@ def upload_chef_mapping():
         clean_column_names(df)
         logger.info(f"After cleaning, columns are: {df.columns.tolist()}")
 
-        if 'chef_name' not in df.columns or 'item_name' not in df.columns:
+        if 'chef_name' not in df.columns or 'item_name' not in df.columns or 'clover_id' not in df.columns:
             logger.error(f"Chef mapping upload failed for tenant {tenant_id}. Missing columns. Found: {df.columns.tolist()}")
-            return jsonify({'error': "Upload failed. The file must contain columns for 'Chef Name' and 'Item Name'."}), 400
+            return jsonify({'error': "Upload failed. The file must contain columns for 'Chef Name', 'Item Name', and 'Clover ID'."}), 400
 
         mappings_created = 0
         mappings_updated = 0
-        items_not_found = 0
         errors = []
         for index, row in df.iterrows():
             try:
                 chef_name = row.get('chef_name')
                 item_name = row.get('item_name')
-                clover_item_id = row.get('clover_id') if 'clover_id' in row else None
-                logger.debug(f"Row {index}: chef_name='{chef_name}', item_name='{item_name}', clover_id='{clover_item_id}'")
-                # Skip rows with NaN or empty values
-                if pd.isna(chef_name) or pd.isna(item_name) or not chef_name or not item_name:
-                    logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}' (empty or NaN)")
+                clover_item_id = row.get('clover_id')
+                if pd.isna(chef_name) or pd.isna(item_name) or pd.isna(clover_item_id) or not chef_name or not item_name or not clover_item_id:
+                    logger.warning(f"Skipping row {index}: chef_name='{chef_name}', item_name='{item_name}', clover_id='{clover_item_id}' (empty or NaN)")
                     continue
                 chef_name_clean = chef_name.strip().lower()
-                item_name_clean = item_name.strip().lower()
                 # Find or create chef (case-insensitive)
                 chef = Chef.query.filter(db.func.lower(Chef.name) == chef_name_clean, Chef.tenant_id == tenant_id).first()
                 if not chef:
@@ -330,38 +326,18 @@ def upload_chef_mapping():
                     db.session.add(chef)
                     db.session.flush()
                     logger.info(f"Created new chef: {chef_name} with ID: {chef.id}")
-                # Find item (prefer clover_id, fallback to name) - DO NOT CREATE NEW ITEMS
-                item = None
-                if clover_item_id and not pd.isna(clover_item_id):
-                    logger.debug(f"Looking up item by clover_id='{clover_item_id}' for tenant_id='{tenant_id}'")
-                    item = Item.query.filter_by(clover_id=str(clover_item_id), tenant_id=tenant_id).first()
-                    if item:
-                        logger.info(f"Found item by clover_id: {clover_item_id} -> {item.name}")
-                    else:
-                        logger.warning(f"No item found by clover_id: {clover_item_id} for tenant_id={tenant_id}")
-                if not item:
-                    logger.debug(f"Looking up item by name='{item_name_clean}' for tenant_id='{tenant_id}'")
-                    item = Item.query.filter(db.func.lower(Item.name) == item_name_clean, Item.tenant_id == tenant_id).first()
-                    if item:
-                        logger.info(f"Found item by name: {item_name}")
-                    else:
-                        logger.warning(f"No item found by name: {item_name_clean} for tenant_id={tenant_id}")
-                if not item:
-                    # Item not found - skip this mapping and log it
-                    items_not_found += 1
-                    logger.warning(f"Item not found for mapping: {item_name} (clover_id: {clover_item_id}) - skipping")
-                    continue
-                # Always update or create the mapping
-                mapping = ChefDishMapping.query.filter_by(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id).first()
+                # Always update or create the mapping by clover_id and chef_id
+                mapping = ChefDishMapping.query.filter_by(clover_id=str(clover_item_id), chef_id=chef.id, tenant_id=tenant_id).first()
                 if not mapping:
-                    mapping = ChefDishMapping(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id)
+                    mapping = ChefDishMapping(clover_id=str(clover_item_id), chef_id=chef.id, tenant_id=tenant_id, item_name=item_name)
                     db.session.add(mapping)
                     mappings_created += 1
-                    logger.info(f"Created mapping: {chef_name} -> {item_name}")
+                    logger.info(f"Created mapping: {chef_name} -> {item_name} (clover_id: {clover_item_id})")
                 else:
                     mapping.is_active = True
+                    mapping.item_name = item_name  # update item name if changed
                     mappings_updated += 1
-                    logger.info(f"Updated mapping: {chef_name} -> {item_name}")
+                    logger.info(f"Updated mapping: {chef_name} -> {item_name} (clover_id: {clover_item_id})")
             except Exception as e:
                 error_msg = f"Error processing row {index}: {str(e)}"
                 logger.error(error_msg)
@@ -378,7 +354,7 @@ def upload_chef_mapping():
             os.remove(filepath)
             logger.info(f"Cleaned up temporary file: {filepath}")
         return jsonify({
-            'message': f'{mappings_created} new and {mappings_updated} updated chef-dish mappings successfully. {items_not_found} items not found.',
+            'message': f'{mappings_created} new and {mappings_updated} updated chef-dish mappings successfully.',
             'errors': errors[:5] if errors else []
         })
     except Exception as e:
