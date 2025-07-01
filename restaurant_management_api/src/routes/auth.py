@@ -366,18 +366,26 @@ def mobile_auth_check():
 def mobile_login():
     """Mobile-specific login endpoint with enhanced cookie handling"""
     try:
+        # Log the incoming request
+        current_app.logger.info(f"Mobile login request received - Method: {request.method}, Headers: {dict(request.headers)}")
+        
         data = request.get_json()
         if not data:
+            current_app.logger.warning("Mobile login: No data provided")
             return jsonify({'error': 'No data provided'}), 400
 
         username = data.get('username')
         password = data.get('password')
 
         if not username or not password:
+            current_app.logger.warning("Mobile login: Missing username or password")
             return jsonify({'error': 'Username and password are required'}), 400
+
+        current_app.logger.info(f"Mobile login attempt for user: {username}")
 
         user = User.query.filter_by(username=username).first()
         if not user or not user.check_password(password):
+            current_app.logger.warning(f"Mobile login: Invalid credentials for user {username}")
             return jsonify({'error': 'Invalid credentials'}), 401
 
         # Set user in session
@@ -418,6 +426,7 @@ def mobile_login():
             max_age=86400
         )
 
+        current_app.logger.info(f"Mobile login response created for user {username}")
         return resp
     except Exception as e:
         current_app.logger.error(f"Mobile login error: {str(e)}")
