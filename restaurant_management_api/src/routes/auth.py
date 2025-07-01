@@ -69,6 +69,15 @@ def login():
         if not username or not password:
             return jsonify({'error': 'Username and password are required'}), 400
 
+        # Check if this is a mobile request
+        user_agent = request.headers.get('User-Agent', '').lower()
+        is_mobile = any(mobile in user_agent for mobile in ['mobile', 'android', 'iphone', 'ipad', 'ipod'])
+        
+        if is_mobile:
+            current_app.logger.warning(f'Mobile browser using regular login endpoint: {user_agent}')
+        else:
+            current_app.logger.info(f'Desktop browser login: {user_agent}')
+
         user = User.query.filter_by(username=username).first()
         if not user or not user.check_password(password):
             return jsonify({'error': 'Invalid credentials'}), 401
@@ -125,6 +134,17 @@ def login():
                 'mobile_session_active',
                 secure=True,
                 httponly=False,  # Allow JavaScript access
+                samesite='None',
+                path='/',
+                max_age=86400
+            )
+            
+            # Strategy 3: Set additional mobile-specific cookies
+            resp.set_cookie(
+                'plateiq_mobile_debug',
+                'logged_in',
+                secure=True,
+                httponly=False,
                 samesite='None',
                 path='/',
                 max_age=86400
