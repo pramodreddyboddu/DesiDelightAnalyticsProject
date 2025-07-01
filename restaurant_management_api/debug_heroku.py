@@ -12,7 +12,23 @@ from sqlalchemy import text
 def main():
     with app.app_context():
         print("=== PRODUCTION DATABASE DEBUG REPORT ===")
-        
+        try:
+            # Print all table names in the current database
+            print("\n📋 Listing all tables in the database:")
+            result = db.session.execute(text("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """))
+            tables = result.fetchall()
+            for t in tables:
+                print(f"   - {t[0]}")
+        except Exception as e:
+            print(f"❌ Error listing tables: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+
         # Direct SQL queries to avoid model import issues
         try:
             # Basic counts
