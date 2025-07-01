@@ -1191,26 +1191,17 @@ class DashboardService:
                 }
             }
 
-
-
     def _get_clover_chef_performance_data(self, start_date=None, end_date=None, chef_ids=None, category=None):
         """Get chef performance data using Clover sales data and local chef mappings, with optional category filter, excluding 'Unassigned' chef and reporting unmapped items. Only use clover_id for mapping."""
         try:
             logging.info("Getting chef performance data from Clover sales + local chef mappings (clover_id only)")
-            # Get all items from local DB (id, clover_id)
-            items = db.session.query(Item).all()
-            item_id_map = {item.clover_id: item.id for item in items}
-            logging.info(f"Found {len(items)} items in local DB, {len(item_id_map)} with clover_id")
-            
             # Get chef mappings from local database (always local)
             chef_mappings = db.session.query(ChefDishMapping).all()
-            item_to_chef = {mapping.item_id: mapping.chef_id for mapping in chef_mappings}
-            logging.info(f"Found {len(chef_mappings)} chef mappings")
-            
+            clover_id_to_chef = {mapping.clover_id: mapping.chef_id for mapping in chef_mappings if mapping.clover_id}
+            logging.info(f"Found {len(chef_mappings)} chef mappings with clover_id")
             # Get all real chefs (exclude 'Unassigned')
             real_chefs = {chef.id: chef.name for chef in Chef.query.filter(Chef.name != 'Unassigned').all()}
             logging.info(f"Found {len(real_chefs)} real chefs: {list(real_chefs.values())}")
-            
             # Filter chefs if specified
             chefs = real_chefs.copy()
             if chef_ids and chef_ids != 'all':
@@ -1219,21 +1210,17 @@ class DashboardService:
                     chefs = {k: v for k, v in real_chefs.items() if k in chef_id_list}
                 except ValueError:
                     logging.warning(f"Invalid chef_ids format: {chef_ids}")
-            
             # Get orders from Clover
             orders = self.clover_service.get_orders(start_date, end_date)
             logging.info(f"Retrieved {len(orders) if orders else 0} orders from Clover")
-            
             # Filter orders by date if provided
             if start_date or end_date:
                 orders = self._filter_orders_by_date(orders, start_date, end_date)
                 logging.info(f"After date filtering: {len(orders)} orders")
-            
             # Parse category filter as list
             category_list = None
             if category and category != 'all':
                 category_list = [c.strip() for c in category.split(',') if c.strip()]
-            
             # Process orders to get chef performance
             chef_performance = {}
             chef_summary = {}
@@ -1241,26 +1228,20 @@ class DashboardService:
             processed_orders = 0
             processed_line_items = 0
             mapped_line_items = 0
-            
             for order in orders:
                 line_items = order.get('lineItems', {}).get('elements', [])
                 processed_orders += 1
-                
                 for line_item in line_items:
                     processed_line_items += 1
                     item = line_item.get('item', {})
                     clover_item_id = item.get('id')
                     item_name = item.get('name', 'Unknown')
-
                     # Only use clover_id for mapping
-                    local_item_id = item_id_map.get(clover_item_id)
-                    if not local_item_id:
+                    chef_id = clover_id_to_chef.get(clover_item_id)
+                    if not chef_id or chef_id not in chefs:
                         unmapped_items.add(f"{clover_item_id}:{item_name}")
-                        logging.debug(f"Unmapped item: clover_id {clover_item_id}, name '{item_name}' not found in local item_id_map.")
-                        continue  # No local mapping for this Clover item
-                    
+                        continue  # Skip items not mapped to chefs or filtered chefs
                     mapped_line_items += 1
-
                     # Extract category from item.categories
                     cat = 'Uncategorized'
                     categories = item.get('categories', {}).get('elements', [])
@@ -1269,11 +1250,6 @@ class DashboardService:
                     # Category filter: if category_list, only include if cat in list
                     if category_list and cat not in category_list:
                         continue
-                    # Find which chef is responsible for this item (using local item_id)
-                    chef_id = item_to_chef.get(local_item_id)
-                    if not chef_id or chef_id not in chefs:
-                        unmapped_items.add(f"{clover_item_id}:{item_name}")
-                        continue  # Skip items not mapped to chefs or filtered chefs
                     chef_name = chefs[chef_id]
                     # Revenue extraction: use total if present and >0, else price * quantity
                     total_cents = line_item.get('total', 0)
@@ -1332,13 +1308,12 @@ class DashboardService:
             logging.info(f"Clover chef performance processing complete:")
             logging.info(f"  - Processed {processed_orders} orders")
             logging.info(f"  - Processed {processed_line_items} line items")
-            logging.info(f"  - Mapped {mapped_line_items} line items to local items")
+            logging.info(f"  - Mapped {mapped_line_items} line items to chefs via clover_id")
             logging.info(f"  - Found {len(chef_performance_grouped)} chefs with performance data")
             logging.info(f"  - Total dishes across all chefs: {sum(len(c['dishes']) for c in chef_performance_grouped)}")
             logging.info(f"  - Unmapped items: {len(unmapped_items)}")
             if unmapped_items:
                 logging.info(f"  - Sample unmapped items: {list(unmapped_items)[:5]}")
-            
             return {
                 'chef_performance': chef_performance_grouped,
                 'chef_summary': summary_list
