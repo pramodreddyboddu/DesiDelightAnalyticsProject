@@ -135,6 +135,8 @@ def get_current_user():
     """Get current user information"""
     try:
         # Debug: log request headers and cookies
+        print(f"/me request headers: {dict(request.headers)}")
+        print(f"/me request cookies: {request.cookies}")
         current_app.logger.warning(f"/me request headers: {dict(request.headers)}")
         current_app.logger.warning(f"/me request cookies: {request.cookies}")
         current_app.logger.info(f"Session in /me: {dict(session)}")
