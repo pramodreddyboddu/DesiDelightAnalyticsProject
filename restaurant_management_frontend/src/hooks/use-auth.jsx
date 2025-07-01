@@ -1,4 +1,5 @@
 import { useState, useEffect, createContext, useContext } from 'react';
+// Mobile debugging enabled - v1.1
 
 const AuthContext = createContext();
 
