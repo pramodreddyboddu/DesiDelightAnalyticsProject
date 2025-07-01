@@ -140,6 +140,19 @@ def create_app(config_name=None):
     app.register_blueprint(tenant_data_bp, url_prefix='/api/tenant-data')
     logger.info("Blueprints registered successfully")
 
+    # Global after_request CORS handler
+    @app.after_request
+    def add_cors_headers(response):
+        origin = request.headers.get('Origin')
+        allowed_origins = app.config['CORS_ORIGINS']
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Cookie, Set-Cookie'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Expose-Headers'] = 'Set-Cookie'
+        return response
+
     # Global OPTIONS handler for CORS preflight
     @app.route('/<path:path>', methods=['OPTIONS'])
     def options_handler(path):
