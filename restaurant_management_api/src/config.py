@@ -57,7 +57,7 @@ class Config:
     SESSION_REFRESH_EACH_REQUEST = True
     SESSION_USE_SIGNER = True
     SESSION_KEY_PREFIX = 'plateiq_'
-    SESSION_COOKIE_DOMAIN = 'plateiq-analytics-api-f6a987ab13c5.herokuapp.com'
+    SESSION_COOKIE_DOMAIN = None  # Allow cross-site cookies for Heroku + Vercel
     
     # CORS configuration
     CORS_ORIGINS = [
