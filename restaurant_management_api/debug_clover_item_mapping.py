@@ -7,6 +7,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from main import app, db
+from src.config import Config
 from src.services.clover_service import CloverService
 from src.models.item import Item
 from src.models.chef_dish_mapping import ChefDishMapping
@@ -16,7 +17,7 @@ from src.models.chef import Chef
 def main():
     with app.app_context():
         print("=== CLOVER ITEM MAPPING DEBUG ===")
-        clover_service = CloverService()
+        clover_service = CloverService(Config)
         # Get recent orders from Clover
         print("Fetching recent orders from Clover API...")
         orders = clover_service.get_orders()
