@@ -32,19 +32,19 @@ def main():
         # Direct SQL queries to avoid model import issues
         try:
             # Basic counts
-            result = db.session.execute(text("SELECT COUNT(*) as count FROM items"))
+            result = db.session.execute(text("SELECT COUNT(*) as count FROM item"))
             total_items = result.fetchone()[0]
             
-            result = db.session.execute(text("SELECT COUNT(*) as count FROM chefs"))
+            result = db.session.execute(text("SELECT COUNT(*) as count FROM chef"))
             total_chefs = result.fetchone()[0]
             
             result = db.session.execute(text("SELECT COUNT(*) as count FROM chef_dish_mapping"))
             total_mappings = result.fetchone()[0]
             
-            result = db.session.execute(text("SELECT COUNT(*) as count FROM sales"))
+            result = db.session.execute(text("SELECT COUNT(*) as count FROM sale"))
             total_sales = result.fetchone()[0]
             
-            print(f"📊 DATABASE COUNTS:")
+            print(f"\n📊 DATABASE COUNTS:")
             print(f"   Items: {total_items}")
             print(f"   Chefs: {total_chefs}")
             print(f"   Chef Mappings: {total_mappings}")
@@ -55,8 +55,8 @@ def main():
             result = db.session.execute(text("""
                 SELECT cdm.id, c.name as chef_name, i.name as item_name 
                 FROM chef_dish_mapping cdm
-                LEFT JOIN chefs c ON cdm.chef_id = c.id
-                LEFT JOIN items i ON cdm.item_id = i.id
+                LEFT JOIN chef c ON cdm.chef_id = c.id
+                LEFT JOIN item i ON cdm.item_id = i.id
                 LIMIT 5
             """))
             mappings = result.fetchall()
@@ -66,8 +66,8 @@ def main():
             # Check for Butter Chicken specifically
             print(f"\n🍗 LOOKING FOR BUTTER CHICKEN:")
             result = db.session.execute(text("""
-                SELECT id, name FROM items 
-                WHERE name LIKE '%Butter Chicken%'
+                SELECT id, name FROM item 
+                WHERE name LIKE '%Butter Chicken%' OR name LIKE '%ButterChicken%'
             """))
             butter_items = result.fetchall()
             if butter_items:
@@ -75,7 +75,7 @@ def main():
                     print(f"   Found: {item[1]} (ID: {item[0]})")
                     result = db.session.execute(text("""
                         SELECT c.name FROM chef_dish_mapping cdm
-                        LEFT JOIN chefs c ON cdm.chef_id = c.id
+                        LEFT JOIN chef c ON cdm.chef_id = c.id
                         WHERE cdm.item_id = :item_id
                     """), {"item_id": item[0]})
                     mapping = result.fetchone()
@@ -90,8 +90,8 @@ def main():
             print(f"\n❌ SALES ITEMS WITHOUT CHEF MAPPING:")
             result = db.session.execute(text("""
                 SELECT DISTINCT s.item_id, i.name
-                FROM sales s
-                LEFT JOIN items i ON s.item_id = i.id
+                FROM sale s
+                LEFT JOIN item i ON s.item_id = i.id
                 WHERE s.item_id NOT IN (SELECT item_id FROM chef_dish_mapping)
                 LIMIT 10
             """))
