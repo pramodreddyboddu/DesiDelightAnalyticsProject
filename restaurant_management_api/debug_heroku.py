@@ -4,14 +4,15 @@ Simple debug script for Heroku production database
 """
 import sys
 import os
-sys.path.append('src')
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from src import create_app
-from src.models import db, ChefDishMapping, Chef, Item, Sale
+from main import app, db
+from models.chef_dish_mapping import ChefDishMapping
+from models.chef import Chef
+from models.item import Item
+from models.sale import Sale
 
 def main():
-    app = create_app()
-    
     with app.app_context():
         print("=== PRODUCTION DATABASE DEBUG REPORT ===")
         
