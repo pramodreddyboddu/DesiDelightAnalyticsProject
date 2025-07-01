@@ -10,7 +10,7 @@ class ChefDishMapping(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     chef_id = db.Column(db.Integer, db.ForeignKey('chef.id'), nullable=False)
-    item_id = db.Column(db.Integer, db.ForeignKey('item.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('item.id'), nullable=True)
     
     # Add tenant_id for multi-tenancy
     tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
