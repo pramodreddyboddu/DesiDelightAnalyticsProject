@@ -103,8 +103,8 @@ def create_app(config_name=None):
             "http://localhost:3000"
         ]}},
         supports_credentials=True,
-        allow_headers=app.config['CORS_ALLOW_HEADERS'],
-        expose_headers=app.config['CORS_EXPOSE_HEADERS'],
+        allow_headers=app.config['CORS_ALLOW_HEADERS'] + ['Cookie', 'Set-Cookie'],
+        expose_headers=app.config['CORS_EXPOSE_HEADERS'] + ['Set-Cookie'],
         methods=app.config['CORS_METHODS'],
         max_age=app.config['CORS_MAX_AGE']
     )
@@ -143,7 +143,15 @@ def create_app(config_name=None):
     # Global OPTIONS handler for CORS preflight
     @app.route('/<path:path>', methods=['OPTIONS'])
     def options_handler(path):
-        return '', 200
+        response = app.make_response('')
+        origin = request.headers.get('Origin')
+        if origin in app.config['CORS_ORIGINS']:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Cookie, Set-Cookie'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response, 200
 
     # Health check endpoint
     @app.route('/')
@@ -202,6 +210,35 @@ def create_app(config_name=None):
             'origin': request.headers.get('Origin'),
             'referer': request.headers.get('Referer')
         }), 200
+
+    # Debug endpoint for cookie testing
+    @app.route('/api/debug/cookies', methods=['GET', 'POST'])
+    def debug_cookies():
+        """Debug endpoint to test cookie handling"""
+        if request.method == 'POST':
+            # Set a test cookie
+            response = jsonify({
+                'message': 'Test cookie set',
+                'cookies_received': dict(request.cookies),
+                'session_data': dict(session)
+            })
+            response.set_cookie(
+                'test_cookie',
+                'test_value',
+                secure=True,
+                httponly=False,  # Allow JavaScript access for testing
+                samesite='None',
+                path='/',
+                max_age=3600
+            )
+            return response, 200
+        else:
+            # Check cookies
+            return jsonify({
+                'cookies_received': dict(request.cookies),
+                'session_data': dict(session),
+                'headers': {k: v for k, v in request.headers.items() if k.lower() in ['cookie', 'origin', 'referer']}
+            }), 200
 
     return app
 
