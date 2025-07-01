@@ -15,6 +15,10 @@ class ChefDishMapping(db.Model):
     # Add tenant_id for multi-tenancy
     tenant_id = db.Column(db.String(36), db.ForeignKey('tenants.id'), nullable=True)
 
+    # New columns for robust mapping
+    clover_id = db.Column(db.String(32), nullable=True, index=True)
+    item_name = db.Column(db.String(128), nullable=True)
+
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -28,6 +32,8 @@ class ChefDishMapping(db.Model):
             'id': self.id,
             'chef_id': self.chef_id,
             'item_id': self.item_id,
+            'clover_id': self.clover_id,
+            'item_name': self.item_name,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
