@@ -308,6 +308,7 @@ def upload_chef_mapping():
 
         mappings_created = 0
         mappings_updated = 0
+        items_not_found = 0
         errors = []
         for index, row in df.iterrows():
             try:
@@ -328,7 +329,7 @@ def upload_chef_mapping():
                     db.session.add(chef)
                     db.session.flush()
                     logger.info(f"Created new chef: {chef_name} with ID: {chef.id}")
-                # Find or create item (prefer clover_id, fallback to name)
+                # Find item (prefer clover_id, fallback to name) - DO NOT CREATE NEW ITEMS
                 item = None
                 if clover_item_id and not pd.isna(clover_item_id):
                     item = Item.query.filter_by(clover_id=str(clover_item_id), tenant_id=tenant_id).first()
@@ -339,17 +340,10 @@ def upload_chef_mapping():
                     if item:
                         logger.info(f"Found item by name: {item_name}")
                 if not item:
-                    # Create new item with provided clover_id if available
-                    if clover_item_id and not pd.isna(clover_item_id):
-                        item_clover_id = str(clover_item_id)
-                        logger.info(f"Creating new item with provided clover_id: {item_clover_id}")
-                    else:
-                        item_clover_id = f"ITEM_{item_name_clean}_{tenant_id[:8]}_{index}_{int(datetime.now().timestamp())}"
-                        logger.info(f"Creating new item with generated clover_id: {item_clover_id}")
-                    item = Item(name=item_name, category='Uncategorized', tenant_id=tenant_id, clover_id=item_clover_id)
-                    db.session.add(item)
-                    db.session.flush()
-                    logger.info(f"Created new item: {item_name} with ID: {item.id}")
+                    # Item not found - skip this mapping and log it
+                    items_not_found += 1
+                    logger.warning(f"Item not found for mapping: {item_name} (clover_id: {clover_item_id}) - skipping")
+                    continue
                 # Always update or create the mapping
                 mapping = ChefDishMapping.query.filter_by(chef_id=chef.id, item_id=item.id, tenant_id=tenant_id).first()
                 if not mapping:
@@ -377,7 +371,7 @@ def upload_chef_mapping():
             os.remove(filepath)
             logger.info(f"Cleaned up temporary file: {filepath}")
         return jsonify({
-            'message': f'{mappings_created} new and {mappings_updated} updated chef-dish mappings successfully.',
+            'message': f'{mappings_created} new and {mappings_updated} updated chef-dish mappings successfully. {items_not_found} items not found.',
             'errors': errors[:5] if errors else []
         })
     except Exception as e:
