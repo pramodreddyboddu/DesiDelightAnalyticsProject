@@ -1164,12 +1164,50 @@ class DashboardService:
                     'profit_margin': margin
                 })
             
+            # --- Module mapping for profitability aggregation ---
+            CATEGORY_TO_MODULE = {
+                "Grocery": "Grocery",
+                "Frozen": "Grocery",
+                "Snacks": "Grocery",
+                "Kaara Snacks": "Grocery",
+                "Meat Items": "Meat",
+                "Vegetables": "Vegetables",
+                # All others will be 'Kitchen'
+            }
+            MODULES = ["Grocery", "Meat", "Vegetables", "Kitchen"]
+            module_agg = {m: {"sales": 0, "expenses": 0, "profit": 0} for m in MODULES}
+
+            # Aggregate by module
+            for cat in all_categories:
+                sales_amt = sales_categories.get(cat, 0)
+                exp_amt = expenses_categories.get(cat, 0)
+                profit = sales_amt - exp_amt
+                module = CATEGORY_TO_MODULE.get(cat, "Kitchen")
+                module_agg[module]["sales"] += sales_amt
+                module_agg[module]["expenses"] += exp_amt
+                module_agg[module]["profit"] += profit
+
+            # Calculate margin for each module
+            modules = []
+            for m in MODULES:
+                sales = module_agg[m]["sales"]
+                profit = module_agg[m]["profit"]
+                margin = (profit / sales * 100) if sales > 0 else 0
+                modules.append({
+                    "module": m,
+                    "sales": sales,
+                    "expenses": module_agg[m]["expenses"],
+                    "profit": profit,
+                    "profit_margin": margin
+                })
+
             profitability = {
                 'total_sales': total_sales,
                 'total_expenses': total_expenses,
                 'net_profit': net_profit,
                 'profit_margin': profit_margin,
                 'categories': categories,
+                'modules': modules,
                 'data_sources': {
                     'sales': self.get_data_source('sales'),
                     'expenses': 'local'
