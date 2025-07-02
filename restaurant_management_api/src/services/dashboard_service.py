@@ -1166,23 +1166,25 @@ class DashboardService:
             
             # --- Module mapping for profitability aggregation ---
             CATEGORY_TO_MODULE = {
-                "Grocery": "Grocery",
-                "Frozen": "Grocery",
-                "Snacks": "Grocery",
-                "Kaara Snacks": "Grocery",
-                "Meat Items": "Meat",
-                "Vegetables": "Vegetables",
+                "grocery": "Grocery",
+                "frozen": "Grocery",
+                "snacks": "Grocery",
+                "kaara snacks": "Grocery",
+                "meat items": "Meat",
+                "meat": "Meat",
+                "vegetables": "Vegetables",
                 # All others will be 'Kitchen'
             }
             MODULES = ["Grocery", "Meat", "Vegetables", "Kitchen"]
             module_agg = {m: {"sales": 0, "expenses": 0, "profit": 0} for m in MODULES}
 
-            # Aggregate by module
+            # Aggregate by module (case-insensitive)
             for cat in all_categories:
+                cat_key = cat.strip().lower() if cat else ""
                 sales_amt = sales_categories.get(cat, 0)
                 exp_amt = expenses_categories.get(cat, 0)
                 profit = sales_amt - exp_amt
-                module = CATEGORY_TO_MODULE.get(cat, "Kitchen")
+                module = CATEGORY_TO_MODULE.get(cat_key, "Kitchen")
                 module_agg[module]["sales"] += sales_amt
                 module_agg[module]["expenses"] += exp_amt
                 module_agg[module]["profit"] += profit
