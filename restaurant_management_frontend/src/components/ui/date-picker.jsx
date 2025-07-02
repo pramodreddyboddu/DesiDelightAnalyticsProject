@@ -14,10 +14,13 @@ export const DatePickerWithRange = ({ date, setDate }) => {
   // Debounced date update function
   const debouncedSetDate = useCallback(
     debounce((newStartDate, newEndDate) => {
-      setDate({
-        from: newStartDate ? new Date(newStartDate) : null,
-        to: newEndDate ? new Date(newEndDate) : null
-      });
+      // Only call setDate if both dates are set (not empty)
+      if (newStartDate && newEndDate) {
+        setDate({
+          from: newStartDate ? new Date(newStartDate) : null,
+          to: newEndDate ? new Date(newEndDate) : null
+        });
+      }
     }, 500),
     [setDate]
   );
