@@ -192,6 +192,48 @@ export const ProfitabilityDashboard = () => {
         </Card>
       </div>
 
+      {/* Module Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Module Analysis</CardTitle>
+          <CardDescription>Profitability grouped by Grocery, Meat, Vegetables, and Kitchen</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-3">Module</th>
+                  <th className="text-right p-3">Sales Revenue</th>
+                  <th className="text-right p-3">Expenses</th>
+                  <th className="text-right p-3">Net Profit</th>
+                  <th className="text-right p-3">Profit Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(profitData?.modules || []).map((mod, index) => (
+                  <tr key={index} className="border-b hover:bg-gray-50">
+                    <td className="p-3 font-medium">{mod.module}</td>
+                    <td className="p-3 text-right">${mod.sales?.toFixed(2)}</td>
+                    <td className="p-3 text-right">${mod.expenses?.toFixed(2)}</td>
+                    <td className={`p-3 text-right font-medium ${mod.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>${mod.profit?.toFixed(2)}</td>
+                    <td className={`p-3 text-right font-medium ${mod.profit_margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{mod.profit_margin?.toFixed(1)}%</td>
+                  </tr>
+                ))}
+                {/* Totals Row */}
+                <tr className="border-t font-bold bg-gray-100">
+                  <td className="p-3">Total</td>
+                  <td className="p-3 text-right">${profitData?.total_sales?.toFixed(2) || '0.00'}</td>
+                  <td className="p-3 text-right">${profitData?.total_expenses?.toFixed(2) || '0.00'}</td>
+                  <td className={`p-3 text-right ${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)).toFixed(2)}</td>
+                  <td className={`p-3 text-right ${((profitData?.total_sales || 0) - (profitData?.total_expenses || 0)) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{profitData?.total_sales > 0 ? (((profitData?.total_sales - profitData?.total_expenses) / profitData?.total_sales) * 100).toFixed(1) : '0.0'}%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Detailed Category Breakdown */}
       <Card>
         <CardHeader>
