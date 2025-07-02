@@ -1167,6 +1167,7 @@ class DashboardService:
             # --- Module mapping for profitability aggregation ---
             CATEGORY_TO_MODULE = {
                 "grocery": "Grocery",
+                "groceries": "Grocery",
                 "frozen": "Grocery",
                 "snacks": "Grocery",
                 "kaara snacks": "Grocery",
